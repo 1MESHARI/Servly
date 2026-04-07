@@ -1,0 +1,921 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <script>
+        // Global Error Handling to prevent blank screen
+        window.onerror = function(msg, url, lineNo, columnNo, error) {
+            console.error('Global Error:', msg, 'at', url, ':', lineNo);
+            const loader = document.getElementById('loading-screen');
+            if (loader) loader.style.display = 'none';
+            return false;
+        };
+        // Fallback to hide loader if something goes wrong
+        setTimeout(function() {
+            const loader = document.getElementById('loading-screen');
+            if (loader && loader.style.display !== 'none') {
+                loader.style.display = 'none';
+                console.log('Loader hidden by fallback timeout');
+            }
+        }, 5000);
+    </script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Servly | نظام تتبع الطلبات الذكي</title>
+    
+    <!-- Fonts & Icons -->
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Tajawal:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+    
+    <!-- QRCode Library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
+    <style>
+        :root {
+            --primary: #6366f1;
+            --primary-dark: #4f46e5;
+            --secondary: #f43f5e;
+            --bg-gradient: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            --glass: rgba(255, 255, 255, 0.03);
+            --glass-border: rgba(255, 255, 255, 0.08);
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+        }
+
+        * {
+            font-family: 'Tajawal', 'Plus Jakarta Sans', sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            background: var(--bg-gradient);
+            color: var(--text-main);
+            min-height: 100vh;
+            overflow-x: hidden;
+            margin: 0;
+            padding: 0;
+        }
+
+        /* Minimalist Royal Blue Background */
+        .mesh-bg {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+            overflow: hidden;
+            background: linear-gradient(180deg, #0d1b2a 0%, #1a2f4a 50%, #0f1f35 100%);
+        }
+
+        /* Ultra-Fine Grid Pattern */
+        .mesh-bg::before {
+            content: '';
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background-image: 
+                repeating-linear-gradient(0deg, transparent, transparent 50px, rgba(255, 255, 255, 0.01) 50px, rgba(255, 255, 255, 0.01) 51px),
+                repeating-linear-gradient(90deg, transparent, transparent 50px, rgba(255, 255, 255, 0.01) 50px, rgba(255, 255, 255, 0.01) 51px);
+            pointer-events: none;
+        }
+
+        /* Subtle Radial Gradient Overlay */
+        .mesh-bg::after {
+            content: '';
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(ellipse at 50% 50%, rgba(59, 130, 246, 0.08) 0%, transparent 70%);
+            pointer-events: none;
+        }
+
+        .mesh-circle {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(100px);
+            opacity: 0.3;
+            animation: meshMove 25s infinite ease-in-out;
+        }
+
+        .circle-1 { width: 600px; height: 600px; background: #1e40af; top: -200px; right: -200px; }
+        .circle-2 { width: 500px; height: 500px; background: #1e3a8a; bottom: -150px; left: -100px; animation-delay: -8s; }
+        .circle-3 { width: 400px; height: 400px; background: #3b82f6; top: 50%; left: 10%; animation-delay: -12s; opacity: 0.25; }
+        .circle-4 { width: 350px; height: 350px; background: #2563eb; bottom: 10%; right: 5%; opacity: 0.2; animation-delay: -16s; }
+        .circle-5 { width: 300px; height: 300px; background: #1d4ed8; top: 30%; right: 15%; opacity: 0.2; animation-delay: -20s; }
+
+        @keyframes meshMove {
+            0% { transform: translate(0, 0) scale(1); }
+            50% { transform: translate(20px, 20px) scale(1.02); }
+            100% { transform: translate(40px, 40px) scale(1.05); }
+        }
+
+        /* Glassmorphism Components */
+        .glass-card {
+            background: var(--glass);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--glass-border);
+            border-radius: 24px;
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+        }
+
+        .glass-input {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--glass-border);
+            color: white;
+            border-radius: 12px;
+            transition: all 0.3s ease;
+        }
+
+        .glass-input:focus {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: var(--primary);
+            outline: none;
+            box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.1);
+        }
+
+        /* Sidebar Styling */
+        .sidebar {
+            width: 280px;
+            height: 100vh;
+            position: fixed;
+            right: 0;
+            top: 0;
+            background: rgba(15, 23, 42, 0.8);
+            backdrop-filter: blur(20px);
+            border-left: 1px solid var(--glass-border);
+            z-index: 50;
+            transition: transform 0.3s ease;
+        }
+
+        .nav-item {
+            display: flex;
+            align-items: center;
+            padding: 12px 20px;
+            margin: 4px 12px;
+            border-radius: 12px;
+            color: var(--text-muted);
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .nav-item:hover, .nav-item.active {
+            background: rgba(99, 102, 241, 0.1);
+            color: var(--primary);
+        }
+
+        .nav-item i {
+            width: 24px;
+            margin-left: 12px;
+            font-size: 1.1rem;
+        }
+
+        /* Order Cards */
+        .order-card {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--glass-border);
+            border-radius: 20px;
+            padding: 20px;
+            transition: all 0.3s ease;
+        }
+
+        .order-card:hover {
+            transform: translateY(-4px);
+            background: rgba(255, 255, 255, 0.05);
+            border-color: var(--primary);
+        }
+
+        /* Status Badges */
+        .badge {
+            padding: 4px 12px;
+            border-radius: 99px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+
+        .badge-waiting { background: rgba(245, 158, 11, 0.1); color: #f59e0b; }
+        .badge-working { background: rgba(59, 130, 246, 0.1); color: #3b82f6; }
+        .badge-ready { background: rgba(16, 185, 129, 0.1); color: #10b981; }
+
+        /* Timeline for Tracking */
+        .timeline {
+            position: relative;
+            padding: 20px 0;
+        }
+
+        .timeline-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 30px;
+            position: relative;
+        }
+
+        .timeline-item::before {
+            content: '';
+            position: absolute;
+            right: 15px;
+            top: 30px;
+            width: 2px;
+            height: calc(100% + 10px);
+            background: var(--glass-border);
+        }
+
+        .timeline-item:last-child::before { display: none; }
+
+        .timeline-icon {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: #1e293b;
+            border: 2px solid var(--glass-border);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1;
+            margin-left: 15px;
+            transition: all 0.3s ease;
+        }
+
+        .timeline-item.active .timeline-icon {
+            background: var(--primary);
+            border-color: var(--primary);
+            box-shadow: 0 0 15px var(--primary);
+        }
+
+        /* Animations */
+        .fade-in { animation: fadeIn 0.5s ease forwards; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* Responsive */
+        @media (max-width: 1024px) {
+            .sidebar { transform: translateX(100%); }
+            .sidebar.open { transform: translateX(0); }
+            .main-content { margin-right: 0 !important; }
+        }
+
+        /* WhatsApp Notification Toast */
+        #whatsapp-toast {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            z-index: 100;
+            display: none;
+        }
+
+        /* iPhone Install Prompt */
+        #iphone-prompt {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            background: rgba(15, 23, 42, 0.95);
+            backdrop-filter: blur(20px);
+            border-top: 1px solid var(--glass-border);
+            padding: 20px;
+            z-index: 1000;
+            display: none;
+            border-radius: 24px 24px 0 0;
+        }
+
+        .arrow-animation {
+            animation: bounce 2s infinite;
+        }
+
+        @keyframes bounce {
+            0%, 20%, 50%, 80%, 100% {transform: translateY(0);}
+            40% {transform: translateY(-10px);}
+            60% {transform: translateY(-5px);}
+        }
+    </style>
+</head>
+<body>
+    <div class="mesh-bg">
+        <!-- Animated Circles -->
+        <div class="mesh-circle circle-1"></div>
+        <div class="mesh-circle circle-2"></div>
+        <div class="mesh-circle circle-3"></div>
+        <div class="mesh-circle circle-4"></div>
+        <div class="mesh-circle circle-5"></div>
+    </div>
+
+    <div id="app">
+        <!-- Loading Screen -->
+        <div id="loading-screen" class="fixed inset-0 z-[100] bg-[#0f172a] flex items-center justify-center">
+            <div class="text-center">
+                <div class="w-16 h-16 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                <h2 class="text-xl font-bold text-white">Servly</h2>
+            </div>
+        </div>
+
+        <!-- Login Page -->
+        <div id="login-page" class="hidden min-h-screen flex items-center justify-center p-4">
+            <div class="max-w-5xl w-full grid lg:grid-cols-2 gap-8 items-center">
+                <!-- Left: Features -->
+                <div class="hidden lg:block space-y-8">
+                    <h1 class="text-5xl font-bold leading-tight">إدارة طلباتك <br><span class="text-indigo-500">بذكاء فائق</span></h1>
+                    <p class="text-slate-400 text-lg">انضم إلى مئات المتاجر التي تستخدم Servly لتوفير تجربة تتبع لحظية واحترافية لعملائها.</p>
+                    
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="glass-card p-6">
+                            <div class="w-12 h-12 bg-indigo-500/10 rounded-xl flex items-center justify-center mb-4">
+                                <i class="fas fa-bolt text-indigo-500 text-xl"></i>
+                            </div>
+                            <h3 class="font-bold mb-2">مزامنة لحظية</h3>
+                            <p class="text-sm text-slate-400">تحديثات فورية للعملاء في أقل من ثانية.</p>
+                        </div>
+                        <div class="glass-card p-6">
+                            <div class="w-12 h-12 bg-pink-500/10 rounded-xl flex items-center justify-center mb-4">
+                                <i class="fas fa-bell text-pink-500 text-xl"></i>
+                            </div>
+                            <h3 class="font-bold mb-2">إشعارات ذكية</h3>
+                            <p class="text-sm text-slate-400">تنبيهات مباشرة على هاتف العميل.</p>
+                        </div>
+                        <div class="glass-card p-6">
+                            <div class="w-12 h-12 bg-blue-500/10 rounded-xl flex items-center justify-center mb-4">
+                                <i class="fab fa-whatsapp text-blue-500 text-xl"></i>
+                            </div>
+                            <h3 class="font-bold mb-2">ربط واتساب</h3>
+                            <p class="text-sm text-slate-400">استقبال طلبات وحجوزات تلقائية.</p>
+                        </div>
+                        <div class="glass-card p-6">
+                            <div class="w-12 h-12 bg-emerald-500/10 rounded-xl flex items-center justify-center mb-4">
+                                <i class="fas fa-chart-pie text-emerald-500 text-xl"></i>
+                            </div>
+                            <h3 class="font-bold mb-2">إحصائيات دقيقة</h3>
+                            <p class="text-sm text-slate-400">تقارير مالية وأداء يومي مفصل.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right: Login Form -->
+                <div class="glass-card p-8 lg:p-12 max-w-md mx-auto w-full">
+                    <div class="text-center mb-8">
+                        <h2 class="text-3xl font-bold mb-2">تسجيل الدخول</h2>
+                        <p class="text-slate-400">مرحباً بك مجدداً في Servly</p>
+                    </div>
+                    <form id="login-form" class="space-y-6">
+                        <div>
+                            <label class="block text-sm font-medium mb-2">البريد الإلكتروني</label>
+                            <input type="email" id="login-email" class="glass-input w-full p-4" placeholder="name@company.com" required>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium mb-2">كلمة المرور</label>
+                            <input type="password" id="login-password" class="glass-input w-full p-4" placeholder="••••••••" required>
+                        </div>
+                        <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 rounded-xl transition-all transform hover:scale-[1.02]">
+                            دخول للمنصة
+                        </button>
+                    </form>
+                    <div class="mt-8 pt-8 border-t border-white/5 text-center">
+                        <p class="text-slate-400 text-sm">ليس لديك حساب؟ <a href="#" class="text-indigo-500 font-bold">تواصل مع الإدارة</a></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Admin Dashboard -->
+        <div id="admin-dashboard" class="hidden min-h-screen">
+            <nav class="glass-card m-4 p-4 flex justify-between items-center">
+                <h2 class="text-xl font-bold">لوحة التحكم المركزية (الأدمن)</h2>
+                <div class="flex gap-4">
+                    <button onclick="showModal('add-shop-modal')" class="bg-indigo-600 px-6 py-2 rounded-xl font-bold">إضافة متجر جديد</button>
+                    <button onclick="logout()" class="text-slate-400 hover:text-white"><i class="fas fa-sign-out-alt ml-2"></i>خروج</button>
+                </div>
+            </nav>
+            <div class="p-4 grid gap-6" id="admin-shops-list">
+                <!-- Shops will be listed here -->
+            </div>
+        </div>
+
+        <!-- Shop Dashboard -->
+        <div id="shop-dashboard" class="hidden min-h-screen">
+            <!-- Sidebar -->
+            <aside class="sidebar" id="sidebar">
+                <div class="p-8 text-center">
+                    <h1 class="text-2xl font-bold text-indigo-500">Servly</h1>
+                    <p id="shop-plan-display" class="text-xs text-slate-500 mt-1">نظام الإدارة الذكي</p>
+                </div>
+                <nav class="mt-4">
+                    <div class="nav-item active" onclick="showShopSection('current-orders')">
+                        <i class="fas fa-list-ul"></i>
+                        <span>الطلبات الحالية</span>
+                    </div>
+                    <div class="nav-item" onclick="showShopSection('whatsapp-center')">
+                        <i class="fab fa-whatsapp"></i>
+                        <span>طلبات الواتساب</span>
+                        <span id="wa-badge" class="hidden mr-auto bg-rose-500 text-white text-[10px] px-2 py-0.5 rounded-full">جديد</span>
+                    </div>
+                    <div class="nav-item" onclick="showShopSection('all-orders')">
+                        <i class="fas fa-history"></i>
+                        <span>سجل الطلبات</span>
+                    </div>
+                    <div class="nav-item" onclick="showShopSection('stats')">
+                        <i class="fas fa-chart-line"></i>
+                        <span>الإحصائيات</span>
+                    </div>
+                    <div class="nav-item" onclick="showShopSection('finance')">
+                        <i class="fas fa-wallet"></i>
+                        <span>المبالغ المالية</span>
+                    </div>
+                    <div class="nav-item" onclick="showShopSection('settings')">
+                        <i class="fas fa-cog"></i>
+                        <span>إعدادات الهوية</span>
+                    </div>
+                    <div class="mt-auto pt-8 px-4">
+                        <button onclick="logout()" class="nav-item w-full text-rose-400 hover:bg-rose-500/10">
+                            <i class="fas fa-sign-out-alt"></i>
+                            <span>تسجيل الخروج</span>
+                        </button>
+                    </div>
+                </nav>
+            </aside>
+
+            <!-- Main Content -->
+            <main class="main-content mr-[280px] p-8 transition-all duration-300">
+                <!-- Header -->
+                <header class="flex justify-between items-center mb-8">
+                    <div>
+                        <h2 id="shop-name-display" class="text-3xl font-bold">مرحباً بك</h2>
+                        <div id="usage-container" class="mt-2">
+                            <div class="w-64 h-2 bg-white/5 rounded-full overflow-hidden">
+                                <div id="usage-bar" class="h-full bg-indigo-500 transition-all" style="width: 0%"></div>
+                            </div>
+                            <p id="usage-text" class="text-xs text-slate-500 mt-1">الاستخدام: 0 / 0</p>
+                        </div>
+                    </div>
+                    <div class="flex gap-4">
+                        <button onclick="showModal('qr-modal')" class="glass-card px-6 py-3 flex items-center gap-2 hover:bg-white/5 transition-all">
+                            <i class="fas fa-qrcode text-indigo-500"></i>
+                            <span>باركود التتبع</span>
+                        </button>
+                        <button onclick="checkLimitAndShowModal()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-3 rounded-xl font-bold shadow-lg shadow-indigo-500/20 transition-all transform hover:scale-105">
+                            <i class="fas fa-plus ml-2"></i> إضافة طلب جديد
+                        </button>
+                    </div>
+                </header>
+
+                <!-- Sections -->
+                <div id="shop-sections">
+                    <!-- Current Orders -->
+                    <section id="current-orders-section" class="fade-in">
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" id="current-orders-grid">
+                            <!-- Order cards will be injected here -->
+                        </div>
+                    </section>
+
+                    <!-- WhatsApp Center -->
+                    <section id="whatsapp-center-section" class="hidden fade-in">
+                        <div class="glass-card p-8 text-center max-w-2xl mx-auto">
+                            <div class="w-20 h-20 bg-emerald-500/10 rounded-full flex items-center justify-center mx-auto mb-6">
+                                <i class="fab fa-whatsapp text-emerald-500 text-4xl"></i>
+                            </div>
+                            <h3 class="text-2xl font-bold mb-4">مركز استقبال طلبات الواتساب</h3>
+                            <p class="text-slate-400 mb-8">هنا ستظهر الطلبات والحجوزات التي يقوم بها العملاء عبر بوت الواتساب الخاص بك.</p>
+                            <div id="wa-orders-list" class="space-y-4">
+                                <div class="p-4 border border-dashed border-white/10 rounded-xl text-slate-500">لا توجد طلبات واتساب حالياً</div>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- All Orders -->
+                    <section id="all-orders-section" class="hidden fade-in">
+                        <div class="glass-card overflow-hidden">
+                            <table class="w-full text-right">
+                                <thead class="bg-white/5">
+                                    <tr>
+                                        <th class="p-4">رقم الطلب</th>
+                                        <th class="p-4">العميل</th>
+                                        <th class="p-4">الحالة</th>
+                                        <th class="p-4">التاريخ</th>
+                                        <th class="p-4">المبلغ</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="all-orders-table"></tbody>
+                            </table>
+                        </div>
+                    </section>
+
+                    <!-- Stats -->
+                    <section id="stats-section" class="hidden fade-in">
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8" id="stats-grid"></div>
+                        <div class="glass-card p-6 h-64 flex items-center justify-center text-slate-500">رسم بياني للأداء (قريباً)</div>
+                    </section>
+
+                    <!-- Finance -->
+                    <section id="finance-section" class="hidden fade-in">
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                            <div class="glass-card p-8 text-center">
+                                <p class="text-slate-400 mb-2">إجمالي الدخل</p>
+                                <h3 id="total-income" class="text-4xl font-bold text-emerald-500">0 ر.س</h3>
+                            </div>
+                            <div class="glass-card p-8 text-center">
+                                <p class="text-slate-400 mb-2">دخل اليوم</p>
+                                <h3 id="today-income" class="text-4xl font-bold text-indigo-500">0 ر.س</h3>
+                            </div>
+                            <div class="glass-card p-8 text-center">
+                                <p class="text-slate-400 mb-2">متوسط الطلب</p>
+                                <h3 id="avg-order" class="text-4xl font-bold text-pink-500">0 ر.س</h3>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- Settings -->
+                    <section id="settings-section" class="hidden fade-in">
+                        <div class="max-w-2xl glass-card p-8">
+                            <h3 class="text-xl font-bold mb-6">إعدادات الهوية البصرية</h3>
+                            <div id="customizations-info" class="mb-4 text-sm text-indigo-400"></div>
+                            <form id="settings-form" class="space-y-6">
+                                <div class="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label class="block text-sm mb-2">اسم المحل</label>
+                                        <input type="text" id="set-shop-name" class="glass-input w-full p-3">
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm mb-2">لون الثيم</label>
+                                        <input type="color" id="set-shop-color" class="glass-input w-full h-12 p-1">
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="block text-sm mb-2">رابط الشعار (URL)</label>
+                                    <input type="text" id="set-shop-logo" class="glass-input w-full p-3" placeholder="https://...">
+                                </div>
+                                <button type="submit" class="w-full bg-indigo-600 py-4 rounded-xl font-bold">حفظ التغييرات</button>
+                            </form>
+                        </div>
+                    </section>
+                </div>
+            </main>
+        </div>
+
+        <!-- Modals -->
+        <div id="modal-overlay" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+            <!-- Add Shop Modal (Admin) -->
+            <div id="add-shop-modal" class="hidden glass-card p-8 w-full max-w-md">
+                <h3 class="text-2xl font-bold mb-6">إضافة متجر جديد</h3>
+                <form id="add-shop-form" class="space-y-4">
+                    <input type="text" id="admin-shop-name" class="glass-input w-full p-3" placeholder="اسم المتجر" required>
+                    <input type="text" id="admin-shop-uid" class="glass-input w-full p-3" placeholder="UID الخاص بالمتجر" required>
+                    <select id="admin-shop-type" class="glass-input w-full p-3 bg-[#1e293b]" required>
+                        <option value="laundry">🧺 مغسلة</option>
+                        <option value="barber">✂️ حلاق</option>
+                        <option value="tailor">👔 خياط</option>
+                        <option value="workshop">🔧 ورشة</option>
+                        <option value="repair">📱 صيانة</option>
+                        <option value="services">🖨️ خدمات</option>
+                    </select>
+                    <select id="admin-shop-plan" class="glass-input w-full p-3 bg-[#1e293b]" required>
+                        <option value="basic">🟢 Basic (99 SR)</option>
+                        <option value="pro">🔵 Pro (199 SR)</option>
+                        <option value="business">🔴 Business (299 SR)</option>
+                    </select>
+                    <div class="flex gap-3 mt-6">
+                        <button type="submit" class="flex-1 bg-indigo-600 py-3 rounded-xl font-bold">إنشاء</button>
+                        <button type="button" onclick="hideModal()" class="flex-1 bg-white/5 py-3 rounded-xl font-bold">إلغاء</button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Add Order Modal (Shop) -->
+            <div id="add-order-modal" class="hidden glass-card p-8 w-full max-w-md">
+                <h3 class="text-2xl font-bold mb-6">إضافة طلب جديد</h3>
+                <form id="add-order-form" class="space-y-4">
+                    <div id="dynamic-fields" class="space-y-4"></div>
+                    <div class="flex gap-3 mt-6">
+                        <button type="submit" class="flex-1 bg-indigo-600 py-3 rounded-xl font-bold">تأكيد الإضافة</button>
+                        <button type="button" onclick="hideModal()" class="flex-1 bg-white/5 py-3 rounded-xl font-bold">إلغاء</button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- QR Modal -->
+            <div id="qr-modal" class="hidden glass-card p-8 w-full max-w-sm text-center">
+                <h3 class="text-2xl font-bold mb-6">باركود التتبع</h3>
+                <div id="qrcode-container" class="bg-white p-4 rounded-2xl inline-block mb-6"></div>
+                <p class="text-slate-400 text-sm mb-6">قم بطباعة هذا الباركود ليتمكن العملاء من تتبع طلباتهم بسهولة.</p>
+                <button onclick="hideModal()" class="w-full bg-indigo-600 py-3 rounded-xl font-bold">إغلاق</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Firebase Configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyD453-ZcJTTYn09u_JwVjR8_nTWP_bogas",
+            authDomain: "servlysa.firebaseapp.com",
+            databaseURL: "https://servlysa-default-rtdb.firebaseio.com",
+            projectId: "servlysa",
+            storageBucket: "servlysa.firebasestorage.app",
+            messagingSenderId: "816156984476",
+            appId: "1:816156984476:web:ba8ac8ee03cb4868215959",
+            measurementId: "G-JESY21YY4X"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+        const auth = firebase.auth();
+        const ADMIN_EMAIL = 'meshari@servly.com';
+
+        const SHOP_TYPES = {
+            laundry: { name: 'مغسلة', icon: '🧺', fields: ['customerName', 'customerPhone', 'serviceType', 'price'], labels: { waiting: 'قيد التنفيذ', ready: 'جاهز' } },
+            barber: { name: 'حلاق', icon: '✂️', fields: ['customerName', 'customerPhone', 'serviceName', 'bookingTime'], labels: { waiting: 'مؤكد', working: 'تم', ready: 'ملغي' } },
+            tailor: { name: 'خياط', icon: '👔', fields: ['customerName', 'customerPhone', 'clothType', 'size', 'notes', 'deliveryDate'], labels: { waiting: 'جاري العمل', ready: 'جاهز', delivered: 'تم التسليم' } },
+            workshop: { name: 'ورشة', icon: '🔧', fields: ['customerName', 'customerPhone', 'carType', 'problemDescription'], labels: { waiting: 'تم الاستلام', working: 'جاري الإصلاح', pending: 'بانتظار قطع', ready: 'جاهز' } },
+            repair: { name: 'صيانة', icon: '📱', fields: ['customerName', 'customerPhone', 'deviceType', 'problemDescription'], labels: { waiting: 'قيد الفحص', working: 'جاري الإصلاح', ready: 'جاهز' } },
+            services: { name: 'خدمات', icon: '🖨️', fields: ['customerName', 'customerPhone', 'serviceType'], labels: { waiting: 'قيد التنفيذ', ready: 'جاهز' } }
+        };
+
+        const PLANS = {
+            basic: { name: 'Basic', limit: 300, price: 99, customizations: 0 },
+            pro: { name: 'Pro', limit: 1000, price: 199, customizations: 1 },
+            business: { name: 'Business', limit: 999999, price: 299, customizations: 3 }
+        };
+
+        const FIELD_LABELS = {
+            customerName: 'اسم العميل', customerPhone: 'رقم الجوال', serviceType: 'نوع الخدمة', price: 'السعر',
+            serviceName: 'اسم الخدمة', bookingTime: 'وقت الحجز', clothType: 'نوع الثوب', size: 'المقاس',
+            notes: 'ملاحظات', deliveryDate: 'تاريخ التسليم', carType: 'نوع السيارة', problemDescription: 'وصف المشكلة', deviceType: 'نوع الجهاز'
+        };
+
+        let state = { user: null, shop: null, orders: [], currentSection: 'current-orders' };
+
+        window.onload = () => {
+            auth.onAuthStateChanged(user => {
+                state.user = user;
+                document.getElementById('loading-screen').style.display = 'none';
+                if (user) {
+                    const userEmail = (user.email || "").toLowerCase().trim();
+                    if (userEmail === ADMIN_EMAIL.toLowerCase()) {
+                        showPage('admin-dashboard');
+                        loadAdminShops();
+                    } else {
+                        loadShopData(user.uid);
+                    }
+                } else {
+                    showPage('login-page');
+                }
+            });
+        };
+
+        function showPage(id) {
+            ['login-page', 'admin-dashboard', 'shop-dashboard'].forEach(p => {
+                const el = document.getElementById(p);
+                if (el) el.classList.add('hidden');
+            });
+            const target = document.getElementById(id);
+            if (target) target.classList.remove('hidden');
+        }
+
+        function loadShopData(uid) {
+            db.ref(`shops/${uid}`).on('value', snap => {
+                state.shop = snap.val();
+                if (state.shop) {
+                    document.getElementById('shop-name-display').innerText = `مرحباً، ${state.shop.name}`;
+                    document.getElementById('shop-plan-display').innerText = `باقة: ${PLANS[state.shop.plan || 'basic'].name}`;
+                    updateUsageUI();
+                    showPage('shop-dashboard');
+                    loadOrders(uid);
+                    applyShopTheme(state.shop);
+                }
+            });
+        }
+
+        function updateUsageUI() {
+            const plan = PLANS[state.shop.plan || 'basic'];
+            const usage = state.shop.usage || 0;
+            const limit = plan.limit;
+            const percent = Math.min((usage / limit) * 100, 100);
+            const bar = document.getElementById('usage-bar');
+            if (bar) {
+                bar.style.width = `${percent}%`;
+                if (percent >= 100) bar.classList.replace('bg-indigo-500', 'bg-rose-500');
+            }
+            const text = document.getElementById('usage-text');
+            if (text) text.innerText = `الاستخدام: ${usage} / ${limit === 999999 ? 'غير محدود' : limit}`;
+            const custInfo = document.getElementById('customizations-info');
+            if (custInfo) custInfo.innerText = `التخصيصات المتبقية: ${state.shop.customizationsLeft || 0}`;
+        }
+
+        function loadOrders(uid) {
+            db.ref(`orders/${uid}`).on('value', snap => {
+                const data = snap.val();
+                state.orders = data ? Object.entries(data).map(([id, val]) => ({id, ...val})) : [];
+                renderOrders();
+                renderStats();
+                calculateFinance();
+            });
+        }
+
+        function renderOrders() {
+            const grid = document.getElementById('current-orders-grid');
+            if (!grid) return;
+            grid.innerHTML = '';
+            const type = SHOP_TYPES[state.shop.type || 'services'];
+            const activeOrders = state.orders.filter(o => o.status !== 'delivered');
+            
+            if (activeOrders.length === 0) {
+                grid.innerHTML = '<div class="col-span-full text-center p-12 text-slate-500">لا توجد طلبات نشطة حالياً</div>';
+                return;
+            }
+
+            activeOrders.forEach(order => {
+                const card = document.createElement('div');
+                card.className = 'order-card fade-in';
+                let fieldsHtml = '';
+                type.fields.forEach(f => { if(order[f]) fieldsHtml += `<p class="text-sm text-slate-400">${FIELD_LABELS[f]}: ${order[f]}</p>`; });
+                
+                let buttonsHtml = '';
+                Object.entries(type.labels).forEach(([key, label]) => {
+                    buttonsHtml += `<button onclick="updateStatus('${order.id}', '${key}')" class="flex-1 p-2 rounded-lg bg-white/5 text-xs hover:bg-white/10">${label}</button>`;
+                });
+                buttonsHtml += `<button onclick="updateStatus('${order.id}', 'delivered')" class="flex-1 p-2 rounded-lg bg-emerald-500/10 text-emerald-500 text-xs hover:bg-emerald-500/20">تم</button>`;
+
+                card.innerHTML = `
+                    <div class="flex justify-between mb-4">
+                        <span class="text-xs text-indigo-400">#${order.orderId || '000'}</span>
+                        <span class="badge bg-indigo-500/10 text-indigo-500">${type.labels[order.status] || order.status}</span>
+                    </div>
+                    <div class="mb-6 space-y-1">${fieldsHtml}</div>
+                    <div class="flex gap-2 flex-wrap">${buttonsHtml}</div>
+                `;
+                grid.appendChild(card);
+            });
+        }
+
+        function checkLimitAndShowModal() {
+            const plan = PLANS[state.shop.plan || 'basic'];
+            if ((state.shop.usage || 0) >= plan.limit) {
+                alert('انتهى اشتراكك، يرجى التجديد');
+                return;
+            }
+            showModal('add-order-modal');
+            renderDynamicFields();
+        }
+
+        function renderDynamicFields() {
+            const container = document.getElementById('dynamic-fields');
+            container.innerHTML = '';
+            const type = SHOP_TYPES[state.shop.type || 'services'];
+            type.fields.forEach(f => {
+                const input = document.createElement('input');
+                input.id = `field-${f}`;
+                input.className = 'glass-input w-full p-3';
+                input.placeholder = FIELD_LABELS[f];
+                input.required = true;
+                if (f === 'price') input.type = 'number';
+                if (f === 'deliveryDate') input.type = 'date';
+                if (f === 'bookingTime') input.type = 'time';
+                container.appendChild(input);
+            });
+        }
+
+        document.getElementById('add-order-form').onsubmit = async (e) => {
+            e.preventDefault();
+            const type = SHOP_TYPES[state.shop.type || 'services'];
+            const order = { status: 'waiting', timestamp: Date.now(), orderId: Math.floor(1000 + Math.random() * 9000) };
+            type.fields.forEach(f => { order[f] = document.getElementById(`field-${f}`).value; });
+            
+            await db.ref(`orders/${state.user.uid}`).push(order);
+            await db.ref(`shops/${state.user.uid}/usage`).set((state.shop.usage || 0) + 1);
+            hideModal();
+            e.target.reset();
+        };
+
+        function updateStatus(id, status) {
+            db.ref(`orders/${state.user.uid}/${id}`).update({ status });
+        }
+
+        function loadAdminShops() {
+            db.ref('shops').on('value', snap => {
+                const shops = snap.val();
+                const list = document.getElementById('admin-shops-list');
+                if (!list) return;
+                list.innerHTML = '';
+                if (shops) {
+                    Object.entries(shops).forEach(([uid, shop]) => {
+                        const div = document.createElement('div');
+                        div.className = 'glass-card p-6 flex justify-between items-center';
+                        div.innerHTML = `
+                            <div>
+                                <h3 class="text-xl font-bold">${shop.name} <span class="text-sm font-normal text-slate-500">(${SHOP_TYPES[shop.type]?.name || 'خدمات'})</span></h3>
+                                <p class="text-sm text-slate-400">الباقة: ${PLANS[shop.plan || 'basic'].name} | الاستخدام: ${shop.usage || 0}</p>
+                            </div>
+                            <div class="flex gap-3">
+                                <button onclick="resetUsage('${uid}')" class="px-4 py-2 bg-emerald-500/10 text-emerald-500 rounded-lg text-sm">تصفير الاستخدام</button>
+                                <button onclick="loginAsShop('${uid}')" class="px-6 py-2 bg-indigo-600 rounded-xl font-bold">دخول</button>
+                            </div>
+                        `;
+                        list.appendChild(div);
+                    });
+                }
+            });
+        }
+
+        async function resetUsage(uid) {
+            await db.ref(`shops/${uid}/usage`).set(0);
+            alert('تم تصفير الاستخدام');
+        }
+
+        document.getElementById('add-shop-form').onsubmit = async (e) => {
+            e.preventDefault();
+            const uid = document.getElementById('admin-shop-uid').value;
+            const plan = document.getElementById('admin-shop-plan').value;
+            const shopData = {
+                name: document.getElementById('admin-shop-name').value,
+                type: document.getElementById('admin-shop-type').value,
+                plan: plan,
+                usage: 0,
+                customizationsLeft: PLANS[plan].customizations,
+                status: 'active'
+            };
+            await db.ref(`shops/${uid}`).set(shopData);
+            hideModal();
+            alert('تم إنشاء المتجر بنجاح');
+        };
+
+        function showModal(id) { 
+            document.getElementById('modal-overlay').classList.remove('hidden'); 
+            document.getElementById(id).classList.remove('hidden'); 
+            if (id === 'qr-modal') generateQRCode();
+        }
+        function hideModal() { 
+            document.getElementById('modal-overlay').classList.add('hidden'); 
+            document.querySelectorAll('#modal-overlay > div').forEach(d => d.classList.add('hidden')); 
+        }
+        function logout() { auth.signOut().then(() => location.reload()); }
+        function loginAsShop(uid) { loadShopData(uid); }
+        
+        function showShopSection(id) {
+            state.currentSection = id;
+            const sections = ['current-orders', 'whatsapp-center', 'all-orders', 'stats', 'finance', 'settings'];
+            sections.forEach(s => {
+                const el = document.getElementById(`${s}-section`);
+                if (el) el.classList.add('hidden');
+            });
+            const target = document.getElementById(`${id}-section`);
+            if (target) target.classList.remove('hidden');
+            
+            document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+            if (event && event.currentTarget) event.currentTarget.classList.add('active');
+        }
+
+        function renderStats() {
+            const grid = document.getElementById('stats-grid');
+            if(!grid) return;
+            const total = state.orders.length;
+            const active = state.orders.filter(o => o.status !== 'delivered').length;
+            const delivered = state.orders.filter(o => o.status === 'delivered').length;
+            const income = state.orders.reduce((acc, o) => acc + (parseFloat(o.price) || 0), 0);
+            
+            grid.innerHTML = `
+                <div class="glass-card p-6 text-center"><p class="text-slate-400 text-sm">إجمالي الطلبات</p><h4 class="text-2xl font-bold">${total}</h4></div>
+                <div class="glass-card p-6 text-center"><p class="text-slate-400 text-sm">طلبات نشطة</p><h4 class="text-2xl font-bold">${active}</h4></div>
+                <div class="glass-card p-6 text-center"><p class="text-slate-400 text-sm">تم تسليمها</p><h4 class="text-2xl font-bold">${delivered}</h4></div>
+                <div class="glass-card p-6 text-center"><p class="text-slate-400 text-sm">إجمالي المبيعات</p><h4 class="text-2xl font-bold text-emerald-500">${income} ر.س</h4></div>
+            `;
+        }
+
+        function calculateFinance() {
+            const income = state.orders.reduce((acc, o) => acc + (parseFloat(o.price) || 0), 0);
+            const ti = document.getElementById('total-income');
+            if (ti) ti.innerText = `${income} ر.س`;
+        }
+
+        function applyShopTheme(shop) {
+            if (shop.color) document.documentElement.style.setProperty('--primary', shop.color);
+            const sn = document.getElementById('set-shop-name');
+            const sc = document.getElementById('set-shop-color');
+            const sl = document.getElementById('set-shop-logo');
+            if (sn) sn.value = shop.name || '';
+            if (sc) sc.value = shop.color || '#6366f1';
+            if (sl) sl.value = shop.logo || '';
+        }
+
+        function generateQRCode() {
+            const container = document.getElementById('qrcode-container');
+            if (!container) return;
+            container.innerHTML = '';
+            const url = `${window.location.origin}${window.location.pathname}#page=track&shopId=${state.user.uid}`;
+            new QRCode(container, { text: url, width: 200, height: 200, colorDark: "#0f172a" });
+        }
+
+        document.getElementById('settings-form').onsubmit = async (e) => {
+            e.preventDefault();
+            const updates = {
+                name: document.getElementById('set-shop-name').value,
+                color: document.getElementById('set-shop-color').value,
+                logo: document.getElementById('set-shop-logo').value
+            };
+            await db.ref(`shops/${state.user.uid}`).update(updates);
+            alert('تم الحفظ بنجاح');
+        };
+    </script>
+</body>
+</html>
