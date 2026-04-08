@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Servly Vision Pro - نظام إدارة المحلات</title>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Tajawal:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <style>
+        :root {
+            --primary: #6366f1;
+            --primary-dark: #4f46e5;
+            --secondary: #f43f5e;
+            --bg-gradient: linear-gradient(135deg, #0d1b2a 0%, #1a2f4a 50%, #0f1f35 100%);
+            --glass: rgba(15, 23, 42, 0.7);
+            --glass-border: rgba(100, 116, 139, 0.3);
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+        }
+
+        * {
+            font-family: 'Tajawal', 'Plus Jakarta Sans', sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            background: var(--bg-gradient);
+            color: var(--text-main);
+            min-height: 100vh;
+            overflow-x: hidden;
+            margin: 0;
+            padding: 0;
+        }
+
+        .mesh-bg {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+            overflow: hidden;
+        }
+
+        .mesh-bg::before {
+            content: '';
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background-image: 
+                repeating-linear-gradient(0deg, transparent, transparent 50px, rgba(255, 255, 255, 0.01) 50px, rgba(255, 255, 255, 0.01) 51px),
+                repeating-linear-gradient(90deg, transparent, transparent 50px, rgba(255, 255, 255, 0.01) 50px, rgba(255, 255, 255, 0.01) 51px);
+            pointer-events: none;
+        }
+
+        .mesh-circle {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(100px);
+            opacity: 0.3;
+            animation: meshMove 25s infinite ease-in-out;
+        }
+
+        .circle-1 { width: 600px; height: 600px; background: #1e40af; top: -200px; right: -200px; }
+        .circle-2 { width: 500px; height: 500px; background: #1e3a8a; bottom: -150px; left: -100px; animation-delay: -8s; }
+        .circle-3 { width: 400px; height: 400px; background: #3b82f6; top: 50%; left: 10%; animation-delay: -12s; opacity: 0.25; }
+
+        @keyframes meshMove {
+            0% { transform: translate(0, 0) scale(1); }
+            50% { transform: translate(20px, 20px) scale(1.02); }
+            100% { transform: translate(40px, 40px) scale(1.05); }
+        }
+
+        .glass-card {
+            background: var(--glass);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--glass-border);
+            border-radius: 1.5rem;
+        }
+
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+    <div class="mesh-bg">
+        <div class="mesh-circle circle-1"></div>
+        <div class="mesh-circle circle-2"></div>
+        <div class="mesh-circle circle-3"></div>
+    </div>
+
+    <div id="app">
+        <!-- Login Page -->
+        <div id="login-page" class="min-h-screen flex items-center justify-center p-4">
+            <div class="glass-card p-8 rounded-3xl max-w-md w-full">
+                <h1 class="text-4xl font-bold text-indigo-400 mb-2 text-center">Servly</h1>
+                <p class="text-center text-slate-400 mb-8">نظام إدارة المحلات الذكي</p>
+                <form onsubmit="handleLogin(event)">
+                    <input type="text" id="email" placeholder="البريد أو اسم المستخدم" class="w-full px-4 py-3 bg-slate-800/50 border border-slate-700 rounded-lg mb-4 text-white focus:border-indigo-500 outline-none" required>
+                    <input type="password" id="password" placeholder="كلمة المرور" class="w-full px-4 py-3 bg-slate-800/50 border border-slate-700 rounded-lg mb-6 text-white focus:border-indigo-500 outline-none" required>
+                    <button type="submit" class="w-full px-4 py-3 bg-indigo-500 hover:bg-indigo-600 rounded-lg font-medium transition">دخول</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Admin Dashboard -->
+        <div id="admin-page" class="hidden min-h-screen flex">
+            <aside class="w-64 bg-slate-900/80 border-l border-slate-700 p-6 flex flex-col fixed right-0 top-0 h-screen">
+                <h2 class="text-2xl font-bold text-indigo-400 mb-8">Servly</h2>
+                <nav class="space-y-2 flex-1">
+                    <button onclick="adminNav('dashboard')" class="admin-btn w-full text-right px-4 py-3 rounded-lg bg-indigo-500/20 text-indigo-400 hover:bg-indigo-500/30 transition"><i class="fas fa-chart-line ml-3"></i>لوحة التحكم</button>
+                    <button onclick="adminNav('shops')" class="admin-btn w-full text-right px-4 py-3 rounded-lg text-slate-400 hover:bg-slate-800/50 transition"><i class="fas fa-store ml-3"></i>المحلات</button>
+                    <button onclick="adminNav('create')" class="admin-btn w-full text-right px-4 py-3 rounded-lg text-slate-400 hover:bg-slate-800/50 transition"><i class="fas fa-plus ml-3"></i>إنشاء متجر</button>
+                </nav>
+                <button onclick="logout()" class="w-full text-right px-4 py-3 rounded-lg bg-rose-500/20 text-rose-400 hover:bg-rose-500/30 transition"><i class="fas fa-sign-out-alt ml-3"></i>خروج</button>
+            </aside>
+
+            <main class="flex-1 mr-64 p-8 overflow-auto">
+                <!-- Dashboard View -->
+                <div id="admin-dashboard" class="admin-view">
+                    <h1 class="text-4xl font-bold mb-8">لوحة التحكم</h1>
+                    <div class="grid grid-cols-4 gap-4">
+                        <div class="glass-card p-6 rounded-2xl"><p class="text-slate-400 mb-2">المحلات</p><h3 class="text-3xl font-bold" id="stat-shops">0</h3></div>
+                        <div class="glass-card p-6 rounded-2xl"><p class="text-slate-400 mb-2">الإيرادات</p><h3 class="text-3xl font-bold" id="stat-revenue">0 ر.س</h3></div>
+                        <div class="glass-card p-6 rounded-2xl"><p class="text-slate-400 mb-2">الاستهلاك</p><h3 class="text-3xl font-bold" id="stat-usage">0</h3></div>
+                        <div class="glass-card p-6 rounded-2xl"><p class="text-slate-400 mb-2">المنتهية</p><h3 class="text-3xl font-bold" id="stat-expired">0</h3></div>
+                    </div>
+                </div>
+
+                <!-- Shops View -->
+                <div id="admin-shops" class="admin-view hidden">
+                    <h1 class="text-4xl font-bold mb-8">إدارة المحلات</h1>
+                    <div id="shops-list" class="space-y-4"></div>
+                </div>
+
+                <!-- Create Shop View -->
+                <div id="admin-create" class="admin-view hidden">
+                    <h1 class="text-4xl font-bold mb-8">إنشاء متجر جديد</h1>
+                    <div class="glass-card p-8 rounded-2xl max-w-2xl">
+                        <form onsubmit="createShop(event)">
+                            <input type="text" id="shop-name" placeholder="اسم المحل" class="w-full px-4 py-3 bg-slate-800/50 border border-slate-700 rounded-lg mb-4 text-white focus:border-indigo-500 outline-none" required>
+                            <input type="email" id="shop-email" placeholder="البريد الإلكتروني" class="w-full px-4 py-3 bg-slate-800/50 border border-slate-700 rounded-lg mb-4 text-white focus:border-indigo-500 outline-none" required>
+                            <select id="shop-type" class="w-full px-4 py-3 bg-slate-800/50 border border-slate-700 rounded-lg mb-4 text-white focus:border-indigo-500 outline-none" required>
+                                <option value="">اختر نوع النشاط</option>
+                                <option value="laundry">🧺 مغسلة</option>
+                                <option value="barber">✂️ حلاق</option>
+                                <option value="tailor">👔 خياط</option>
+                                <option value="workshop">🔧 ورشة</option>
+                                <option value="repair">📱 صيانة</option>
+                                <option value="services">🖨️ خدمات</option>
+                            </select>
+                            <div class="mb-6">
+                                <p class="text-sm font-medium mb-3">اختر الباقة</p>
+                                <div class="grid grid-cols-3 gap-3">
+                                    <label class="glass-card p-4 rounded-lg cursor-pointer hover:border-indigo-500 transition border border-slate-700"><input type="radio" name="plan" value="basic" required class="mb-2"> <div class="font-bold">Basic</div><div class="text-xs text-slate-400">99 ر.س</div></label>
+                                    <label class="glass-card p-4 rounded-lg cursor-pointer hover:border-indigo-500 transition border border-slate-700"><input type="radio" name="plan" value="pro" required class="mb-2"> <div class="font-bold">Pro</div><div class="text-xs text-slate-400">199 ر.س</div></label>
+                                    <label class="glass-card p-4 rounded-lg cursor-pointer hover:border-indigo-500 transition border border-slate-700"><input type="radio" name="plan" value="business" required class="mb-2"> <div class="font-bold">Business</div><div class="text-xs text-slate-400">299 ر.س</div></label>
+                                </div>
+                            </div>
+                            <button type="submit" class="w-full px-6 py-3 bg-indigo-500 hover:bg-indigo-600 rounded-lg font-medium transition">إنشاء المتجر</button>
+                        </form>
+                    </div>
+                </div>
+            </main>
+        </div>
+
+        <!-- Shop Dashboard -->
+        <div id="shop-page" class="hidden min-h-screen flex">
+            <aside class="w-64 bg-slate-900/80 border-l border-slate-700 p-6 flex flex-col fixed right-0 top-0 h-screen">
+                <h2 id="shop-name-display" class="text-2xl font-bold text-indigo-400 mb-8">المحل</h2>
+                <nav class="space-y-2 flex-1">
+                    <button onclick="shopNav('orders')" class="shop-btn w-full text-right px-4 py-3 rounded-lg bg-indigo-500/20 text-indigo-400 hover:bg-indigo-500/30 transition"><i class="fas fa-list ml-3"></i>الطلبات</button>
+                    <button onclick="shopNav('add')" class="shop-btn w-full text-right px-4 py-3 rounded-lg text-slate-400 hover:bg-slate-800/50 transition"><i class="fas fa-plus ml-3"></i>طلب جديد</button>
+                </nav>
+                <button onclick="backToAdmin()" class="w-full text-right px-4 py-3 rounded-lg bg-slate-700/50 text-slate-300 hover:bg-slate-700 transition"><i class="fas fa-arrow-left ml-3"></i>العودة</button>
+            </aside>
+
+            <main class="flex-1 mr-64 p-8 overflow-auto">
+                <!-- Orders View -->
+                <div id="shop-orders" class="shop-view">
+                    <h1 class="text-4xl font-bold mb-8">الطلبات</h1>
+                    <div id="orders-list" class="space-y-4"></div>
+                </div>
+
+                <!-- Add Order View -->
+                <div id="shop-add" class="shop-view hidden">
+                    <h1 class="text-4xl font-bold mb-8">طلب جديد</h1>
+                    <div class="glass-card p-8 rounded-2xl max-w-2xl">
+                        <form onsubmit="addOrder(event)" id="order-form"></form>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyD453-ZcJTTYn09u_JwVjR8_nTWP_bogas",
+            authDomain: "servlysa.firebaseapp.com",
+            databaseURL: "https://servlysa-default-rtdb.firebaseio.com",
+            projectId: "servlysa",
+            storageBucket: "servlysa.firebasestorage.app",
+            messagingSenderId: "816156984476",
+            appId: "1:816156984476:web:ba8ac8ee03cb4868215959"
+        };
+
+        try { firebase.initializeApp(firebaseConfig); } catch (e) { console.log('Firebase initialized'); }
+        const db = firebase.database();
+        let state = { user: null, shop: null, shops: {} };
+
+        const PLANS = {
+            basic: { price: 99, limit: 300, features: ['تتبع', 'QR'] },
+            pro: { price: 199, limit: 1000, features: ['واتساب', 'تخصيص'] },
+            business: { price: 299, limit: Infinity, features: ['كل شيء'] }
+        };
+
+        const SHOP_TYPES = {
+            laundry: { fields: [{ name: 'customerName', label: 'اسم العميل' }, { name: 'phone', label: 'الجوال' }, { name: 'serviceType', label: 'الخدمة', type: 'select', options: ['غسيل', 'كوي'] }, { name: 'price', label: 'السعر', type: 'number' }], statuses: ['قيد التنفيذ', 'جاهز'] },
+            barber: { fields: [{ name: 'customerName', label: 'اسم العميل' }, { name: 'phone', label: 'الجوال' }, { name: 'serviceName', label: 'الخدمة' }, { name: 'bookingTime', label: 'الوقت', type: 'time' }], statuses: ['مؤكد', 'تم', 'ملغي'] },
+            tailor: { fields: [{ name: 'customerName', label: 'اسم العميل' }, { name: 'phone', label: 'الجوال' }, { name: 'clothType', label: 'نوع الثوب' }, { name: 'size', label: 'المقاس' }, { name: 'notes', label: 'ملاحظات', type: 'textarea' }, { name: 'deliveryDate', label: 'التسليم', type: 'date' }], statuses: ['جاري', 'جاهز', 'تسليم'] },
+            workshop: { fields: [{ name: 'customerName', label: 'اسم العميل' }, { name: 'phone', label: 'الجوال' }, { name: 'carType', label: 'السيارة' }, { name: 'problemDescription', label: 'المشكلة', type: 'textarea' }], statuses: ['استلام', 'إصلاح', 'قطع', 'جاهز'] },
+            repair: { fields: [{ name: 'customerName', label: 'اسم العميل' }, { name: 'phone', label: 'الجوال' }, { name: 'deviceType', label: 'الجهاز' }, { name: 'problemDescription', label: 'المشكلة', type: 'textarea' }], statuses: ['فحص', 'إصلاح', 'جاهز'] },
+            services: { fields: [{ name: 'customerName', label: 'اسم العميل' }, { name: 'phone', label: 'الجوال' }, { name: 'serviceType', label: 'الخدمة' }], statuses: ['تنفيذ', 'جاهز'] }
+        };
+
+        function handleLogin(e) {
+            e.preventDefault();
+            const email = document.getElementById('email').value.toLowerCase();
+            const password = document.getElementById('password').value;
+
+            if ((email === 'meshari' || email === 'meshari@servly.com') && password === '123456') {
+                state.user = { type: 'admin', email };
+                showAdmin();
+                return;
+            }
+
+            db.ref('shops').once('value', snapshot => {
+                const shops = snapshot.val() || {};
+                for (let [id, shop] of Object.entries(shops)) {
+                    if (shop.email.toLowerCase() === email && shop.password === password) {
+                        state.user = { type: 'shop', email, shopId: id };
+                        state.shop = shop;
+                        showShop();
+                        return;
+                    }
+                }
+                let local = JSON.parse(localStorage.getItem('shops') || '{}');
+                for (let [id, shop] of Object.entries(local)) {
+                    if (shop.email.toLowerCase() === email && shop.password === password) {
+                        state.user = { type: 'shop', email, shopId: id };
+                        state.shop = shop;
+                        showShop();
+                        return;
+                    }
+                }
+                alert('بيانات غير صحيحة');
+            }).catch(() => {
+                let local = JSON.parse(localStorage.getItem('shops') || '{}');
+                for (let [id, shop] of Object.entries(local)) {
+                    if (shop.email.toLowerCase() === email && shop.password === password) {
+                        state.user = { type: 'shop', email, shopId: id };
+                        state.shop = shop;
+                        showShop();
+                        return;
+                    }
+                }
+                alert('بيانات غير صحيحة');
+            });
+        }
+
+        function showAdmin() {
+            document.getElementById('login-page').classList.add('hidden');
+            document.getElementById('admin-page').classList.remove('hidden');
+            loadShops();
+        }
+
+        function adminNav(section) {
+            document.querySelectorAll('.admin-view').forEach(v => v.classList.add('hidden'));
+            document.getElementById(`admin-${section}`).classList.remove('hidden');
+            document.querySelectorAll('.admin-btn').forEach(b => b.classList.remove('bg-indigo-500/20', 'text-indigo-400'));
+            event.target.closest('.admin-btn').classList.add('bg-indigo-500/20', 'text-indigo-400');
+        }
+
+        function createShop(e) {
+            e.preventDefault();
+            const name = document.getElementById('shop-name').value;
+            const email = document.getElementById('shop-email').value;
+            const type = document.getElementById('shop-type').value;
+            const plan = document.querySelector('input[name="plan"]:checked').value;
+            const shopId = email.replace('@', '_').replace('.', '_');
+            const password = Math.random().toString(36).substring(2, 10);
+            const endDate = new Date();
+            endDate.setMonth(endDate.getMonth() + 1);
+
+            const shopData = { name, email, type, plan, password, status: 'active', usage: 0, monthlyLimit: PLANS[plan].limit, customizationsLeft: plan === 'basic' ? 0 : plan === 'pro' ? 1 : 3, subscriptionEndDate: endDate.toISOString(), createdAt: new Date().toISOString() };
+
+            db.ref(`shops/${shopId}`).set(shopData).catch(err => console.log('Firebase:', err));
+            let shops = JSON.parse(localStorage.getItem('shops') || '{}');
+            shops[shopId] = shopData;
+            localStorage.setItem('shops', JSON.stringify(shops));
+
+            alert(`تم الإنشاء!\n\nالبريد: ${email}\nالرمز: ${password}`);
+            document.querySelector('form').reset();
+            adminNav('shops');
+        }
+
+        function loadShops() {
+            db.ref('shops').on('value', snapshot => {
+                state.shops = snapshot.val() || {};
+                displayShops();
+            }, () => {
+                state.shops = JSON.parse(localStorage.getItem('shops') || '{}');
+                displayShops();
+            });
+        }
+
+        function displayShops() {
+            const container = document.getElementById('shops-list');
+            if (Object.keys(state.shops).length === 0) {
+                container.innerHTML = '<div class="glass-card p-6 text-center text-slate-400 rounded-2xl">لا توجد محلات</div>';
+                return;
+            }
+
+            container.innerHTML = '';
+            let revenue = 0, total = 0, expired = 0, usage = 0;
+            Object.entries(state.shops).forEach(([id, shop]) => {
+                const daysLeft = Math.ceil((new Date(shop.subscriptionEndDate) - new Date()) / (1000 * 60 * 60 * 24));
+                const usagePercent = shop.monthlyLimit === Infinity ? 0 : (shop.usage / shop.monthlyLimit) * 100;
+
+                revenue += PLANS[shop.plan].price;
+                total++;
+                if (daysLeft <= 0) expired++;
+                usage += shop.usage;
+
+                const card = document.createElement('div');
+                card.className = 'glass-card p-6 rounded-2xl';
+                card.innerHTML = `
+                    <div class="flex justify-between mb-4">
+                        <div>
+                            <h3 class="text-xl font-bold">${shop.name}</h3>
+                            <p class="text-slate-400 text-sm">${shop.email}</p>
+                            <span class="inline-block mt-2 text-xs bg-indigo-500/20 text-indigo-400 px-3 py-1 rounded-full">${shop.plan.toUpperCase()}</span>
+                        </div>
+                    </div>
+                    <div class="mb-4">
+                        <div class="flex justify-between mb-2"><span class="text-sm">الاستهلاك</span><span class="text-sm font-bold">${shop.usage}/${shop.monthlyLimit === Infinity ? '∞' : shop.monthlyLimit}</span></div>
+                        <div class="w-full bg-slate-800/50 rounded-full h-2"><div class="bg-indigo-500 h-2 rounded-full" style="width: ${Math.min(100, usagePercent)}%"></div></div>
+                    </div>
+                    <div class="flex gap-2">
+                        <button onclick="impersonateShop('${id}')" class="flex-1 px-3 py-2 bg-indigo-500/20 text-indigo-400 rounded-lg hover:bg-indigo-500/30 text-sm transition">عرض</button>
+                        <button onclick="renewShop('${id}')" class="flex-1 px-3 py-2 bg-emerald-500/20 text-emerald-400 rounded-lg hover:bg-emerald-500/30 text-sm transition">تجديد</button>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+
+            document.getElementById('stat-shops').innerText = total;
+            document.getElementById('stat-revenue').innerText = `${revenue} ر.س`;
+            document.getElementById('stat-usage').innerText = usage;
+            document.getElementById('stat-expired').innerText = expired;
+        }
+
+        function renewShop(shopId) {
+            const endDate = new Date();
+            endDate.setMonth(endDate.getMonth() + 1);
+            db.ref(`shops/${shopId}`).update({ subscriptionEndDate: endDate.toISOString(), usage: 0 }).catch(err => console.log('Firebase:', err));
+            let shops = JSON.parse(localStorage.getItem('shops') || '{}');
+            if (shops[shopId]) {
+                shops[shopId].subscriptionEndDate = endDate.toISOString();
+                shops[shopId].usage = 0;
+                localStorage.setItem('shops', JSON.stringify(shops));
+            }
+            alert('تم التجديد!');
+            loadShops();
+        }
+
+        function impersonateShop(shopId) {
+            state.shop = state.shops[shopId];
+            state.user.shopId = shopId;
+            showShop();
+        }
+
+        function showShop() {
+            document.getElementById('login-page').classList.add('hidden');
+            document.getElementById('admin-page').classList.add('hidden');
+            document.getElementById('shop-page').classList.remove('hidden');
+            document.getElementById('shop-name-display').innerText = state.shop.name;
+            renderOrderForm();
+            loadOrders();
+        }
+
+        function shopNav(section) {
+            document.querySelectorAll('.shop-view').forEach(v => v.classList.add('hidden'));
+            document.getElementById(`shop-${section}`).classList.remove('hidden');
+            document.querySelectorAll('.shop-btn').forEach(b => b.classList.remove('bg-indigo-500/20', 'text-indigo-400'));
+            event.target.closest('.shop-btn').classList.add('bg-indigo-500/20', 'text-indigo-400');
+        }
+
+        function renderOrderForm() {
+            const form = document.getElementById('order-form');
+            const fields = SHOP_TYPES[state.shop.type].fields;
+            form.innerHTML = '';
+            fields.forEach(field => {
+                const div = document.createElement('div');
+                div.className = 'mb-4';
+                if (field.type === 'select') {
+                    div.innerHTML = `<label class="block text-sm font-medium mb-2">${field.label}</label><select id="field-${field.name}" class="w-full px-4 py-3 bg-slate-800/50 border border-slate-700 rounded-lg text-white focus:border-indigo-500 outline-none"><option value="">اختر</option>${field.options.map(o => `<option value="${o}">${o}</option>`).join('')}</select>`;
+                } else if (field.type === 'textarea') {
+                    div.innerHTML = `<label class="block text-sm font-medium mb-2">${field.label}</label><textarea id="field-${field.name}" class="w-full px-4 py-3 bg-slate-800/50 border border-slate-700 rounded-lg text-white focus:border-indigo-500 outline-none" rows="3"></textarea>`;
+                } else {
+                    div.innerHTML = `<label class="block text-sm font-medium mb-2">${field.label}</label><input type="${field.type || 'text'}" id="field-${field.name}" class="w-full px-4 py-3 bg-slate-800/50 border border-slate-700 rounded-lg text-white focus:border-indigo-500 outline-none">`;
+                }
+                form.appendChild(div);
+            });
+            const btn = document.createElement('button');
+            btn.type = 'submit';
+            btn.className = 'w-full px-6 py-3 bg-indigo-500 hover:bg-indigo-600 rounded-lg font-medium transition mt-6';
+            btn.innerText = 'إضافة الطلب';
+            form.appendChild(btn);
+        }
+
+        function addOrder(e) {
+            e.preventDefault();
+            if (state.shop.usage >= state.shop.monthlyLimit) {
+                alert('انتهى الاشتراك، جدد الآن');
+                return;
+            }
+
+            const fields = SHOP_TYPES[state.shop.type].fields;
+            const orderData = { status: SHOP_TYPES[state.shop.type].statuses[0], createdAt: new Date().toISOString() };
+            fields.forEach(field => {
+                orderData[field.name] = document.getElementById(`field-${field.name}`).value;
+            });
+
+            const orderId = Date.now().toString();
+            const shopId = state.user.shopId;
+
+            db.ref(`orders/${shopId}/${orderId}`).set(orderData).catch(err => console.log('Firebase:', err));
+            db.ref(`shops/${shopId}/usage`).set(state.shop.usage + 1).catch(err => console.log('Firebase:', err));
+
+            let shops = JSON.parse(localStorage.getItem('shops') || '{}');
+            if (!shops[shopId].orders) shops[shopId].orders = {};
+            shops[shopId].orders[orderId] = orderData;
+            shops[shopId].usage = state.shop.usage + 1;
+            localStorage.setItem('shops', JSON.stringify(shops));
+
+            state.shop.usage++;
+            alert('تم الإضافة!');
+            document.getElementById('order-form').reset();
+            shopNav('orders');
+        }
+
+        function loadOrders() {
+            const shopId = state.user.shopId;
+            db.ref(`orders/${shopId}`).on('value', snapshot => {
+                displayOrders(snapshot.val() || {});
+            }, () => {
+                let shops = JSON.parse(localStorage.getItem('shops') || '{}');
+                displayOrders(shops[shopId]?.orders || {});
+            });
+        }
+
+        function displayOrders(orders) {
+            const container = document.getElementById('orders-list');
+            if (Object.keys(orders).length === 0) {
+                container.innerHTML = '<div class="glass-card p-6 text-center text-slate-400 rounded-2xl">لا توجد طلبات</div>';
+                return;
+            }
+
+            container.innerHTML = '';
+            Object.entries(orders).forEach(([id, order]) => {
+                const card = document.createElement('div');
+                card.className = 'glass-card p-4 rounded-2xl flex justify-between items-center';
+                card.innerHTML = `
+                    <div><h4 class="font-bold">${order.customerName || 'عميل'}</h4><p class="text-sm text-slate-400">${order.phone || ''}</p></div>
+                    <select onchange="updateOrderStatus('${id}', this.value)" class="px-3 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-sm">
+                        ${SHOP_TYPES[state.shop.type].statuses.map(s => `<option ${s === order.status ? 'selected' : ''}>${s}</option>`).join('')}
+                    </select>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        function updateOrderStatus(orderId, newStatus) {
+            const shopId = state.user.shopId;
+            db.ref(`orders/${shopId}/${orderId}/status`).set(newStatus).catch(err => console.log('Firebase:', err));
+            let shops = JSON.parse(localStorage.getItem('shops') || '{}');
+            if (shops[shopId]?.orders?.[orderId]) {
+                shops[shopId].orders[orderId].status = newStatus;
+                localStorage.setItem('shops', JSON.stringify(shops));
+            }
+        }
+
+        function backToAdmin() {
+            document.getElementById('shop-page').classList.add('hidden');
+            document.getElementById('admin-page').classList.remove('hidden');
+            loadShops();
+        }
+
+        function logout() {
+            state = { user: null, shop: null, shops: {} };
+            document.getElementById('login-page').classList.remove('hidden');
+            document.getElementById('admin-page').classList.add('hidden');
+            document.getElementById('shop-page').classList.add('hidden');
+            document.getElementById('email').value = '';
+            document.getElementById('password').value = '';
+        }
+    </script>
+</body>
+</html>
