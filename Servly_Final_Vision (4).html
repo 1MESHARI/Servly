@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Servly - نظام إدارة المحلات</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        * { margin: 0; padding: 0; }
+
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #0d1b2a; color: #e2e8f0; }
+
+        .mesh-bg { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; overflow: hidden; background: linear-gradient(180deg, #0d1b2a 0%, #1a2f4a 50%, #0f1f35 100%); pointer-events: none; }
+
+        .mesh-bg::before { content: ''; position: absolute; width: 100%; height: 100%; background-image: repeating-linear-gradient(0deg, transparent, transparent 50px, rgba(255, 255, 255, 0.01) 50px, rgba(255, 255, 255, 0.01) 51px), repeating-linear-gradient(90deg, transparent, transparent 50px, rgba(255, 255, 255, 0.01) 50px, rgba(255, 255, 255, 0.01) 51px); pointer-events: none; }
+
+        .mesh-bg::after { content: ''; position: absolute; width: 100%; height: 100%; background: radial-gradient(ellipse at 50% 50%, rgba(59, 130, 246, 0.08) 0%, transparent 70%); pointer-events: none; }
+
+        .glass-card { background: rgba(15, 23, 42, 0.7); backdrop-filter: blur(10px); border: 1px solid rgba(148, 163, 184, 0.1); border-radius: 12px; transition: all 0.3s ease; }
+
+        .glass-card:hover { background: rgba(15, 23, 42, 0.9); border-color: rgba(148, 163, 184, 0.2); }
+
+        .hidden { display: none !important; }
+
+        .badge { padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+
+        .badge-pending { background: rgba(251, 146, 60, 0.2); color: #fb923c; }
+        .badge-processing { background: rgba(59, 130, 246, 0.2); color: #3b82f6; }
+        .badge-completed { background: rgba(34, 197, 94, 0.2); color: #22c55e; }
+        .badge-delivered { background: rgba(34, 197, 94, 0.2); color: #22c55e; }
+
+        input, select, textarea { background: rgba(15, 23, 42, 0.8); border: 1px solid rgba(148, 163, 184, 0.2); color: #e2e8f0; padding: 10px; border-radius: 8px; }
+
+        input:focus, select:focus, textarea:focus { outline: none; border-color: rgba(99, 102, 241, 0.5); background: rgba(15, 23, 42, 0.95); }
+
+        button { cursor: pointer; transition: all 0.3s ease; }
+
+        .btn-primary { background: rgba(99, 102, 241, 0.8); color: white; padding: 10px 20px; border-radius: 8px; border: none; }
+        .btn-primary:hover { background: rgba(99, 102, 241, 1); }
+
+        .admin-sidebar { position: fixed; right: 0; top: 0; height: 100vh; width: 250px; background: rgba(15, 23, 42, 0.95); border-left: 1px solid rgba(148, 163, 184, 0.1); padding: 20px; overflow-y: auto; z-index: 100; }
+
+        .admin-nav-item { width: 100%; text-align: right; padding: 12px 16px; border-radius: 8px; background: transparent; color: #94a3b8; border: none; cursor: pointer; transition: all 0.3s ease; margin-bottom: 8px; }
+
+        .admin-nav-item:hover { background: rgba(148, 163, 184, 0.1); color: #cbd5e1; }
+
+        .admin-nav-item.active { background: rgba(99, 102, 241, 0.2); color: #6366f1; }
+
+        .admin-section { display: none; }
+        .admin-section.active { display: block; }
+
+        .loading-screen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.9); display: flex; align-items: center; justify-content: center; z-index: 1000; }
+
+        .spinner { width: 50px; height: 50px; border: 4px solid rgba(99, 102, 241, 0.2); border-top-color: #6366f1; border-radius: 50%; animation: spin 1s linear infinite; }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+    <div class="mesh-bg"></div>
+
+    <!-- Loading Screen -->
+    <div id="loading-screen" class="loading-screen">
+        <div class="spinner"></div>
+    </div>
+
+    <!-- Login Page -->
+    <div id="login-page" class="min-h-screen flex items-center justify-center p-4">
+        <div class="glass-card p-8 w-full max-w-md">
+            <h1 class="text-4xl font-bold text-center mb-2 text-indigo-400">Servly</h1>
+            <p class="text-center text-slate-400 mb-8">نظام إدارة المحلات المتقدم</p>
+            
+            <form id="login-form" onsubmit="handleLogin(event)">
+                <div class="mb-4">
+                    <label class="block text-sm mb-2">البريد الإلكتروني</label>
+                    <input type="email" id="email-input" placeholder="أدخل بريدك" required>
+                </div>
+                <div class="mb-6">
+                    <label class="block text-sm mb-2">كلمة المرور</label>
+                    <input type="password" id="password-input" placeholder="أدخل كلمة المرور" required>
+                </div>
+                <button type="submit" class="btn-primary w-full">دخول</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Admin Dashboard -->
+    <div id="admin-dashboard" class="hidden min-h-screen flex">
+        <!-- Sidebar -->
+        <aside class="admin-sidebar">
+            <div class="mb-8">
+                <h2 class="text-2xl font-bold text-indigo-400">Servly</h2>
+                <p class="text-xs text-slate-500 mt-1">لوحة التحكم</p>
+            </div>
+            
+            <nav class="space-y-2 flex-1">
+                <button onclick="showAdminSection('dashboard')" class="admin-nav-item active">
+                    <i class="fas fa-chart-line ml-2"></i>لوحة التحكم
+                </button>
+                <button onclick="showAdminSection('shops')" class="admin-nav-item">
+                    <i class="fas fa-store ml-2"></i>المحلات
+                </button>
+                <button onclick="showAdminSection('create')" class="admin-nav-item">
+                    <i class="fas fa-plus ml-2"></i>إنشاء محل
+                </button>
+                <button onclick="showAdminSection('subscriptions')" class="admin-nav-item">
+                    <i class="fas fa-calendar ml-2"></i>الاشتراكات
+                </button>
+            </nav>
+            
+            <button onclick="logout()" class="admin-nav-item w-full text-rose-400 hover:bg-rose-500/20">
+                <i class="fas fa-sign-out-alt ml-2"></i>تسجيل الخروج
+            </button>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="flex-1 ml-64 p-8 overflow-auto">
+            <!-- Dashboard Section -->
+            <div id="admin-section-dashboard" class="admin-section active">
+                <h2 class="text-3xl font-bold mb-6">لوحة التحكم</h2>
+                <div class="grid grid-cols-4 gap-4">
+                    <div class="glass-card p-6">
+                        <p class="text-slate-400 text-sm">إجمالي المحلات</p>
+                        <h3 class="text-3xl font-bold mt-2" id="stat-total-shops">0</h3>
+                    </div>
+                    <div class="glass-card p-6">
+                        <p class="text-slate-400 text-sm">محلات نشطة</p>
+                        <h3 class="text-3xl font-bold mt-2 text-emerald-400" id="stat-active-shops">0</h3>
+                    </div>
+                    <div class="glass-card p-6">
+                        <p class="text-slate-400 text-sm">إجمالي الإيرادات</p>
+                        <h3 class="text-3xl font-bold mt-2 text-indigo-400" id="stat-revenue">0 ر.س</h3>
+                    </div>
+                    <div class="glass-card p-6">
+                        <p class="text-slate-400 text-sm">الاشتراكات المنتهية</p>
+                        <h3 class="text-3xl font-bold mt-2 text-rose-400" id="stat-expired">0</h3>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Shops Section -->
+            <div id="admin-section-shops" class="admin-section">
+                <h2 class="text-3xl font-bold mb-6">إدارة المحلات</h2>
+                <div id="shops-list" class="space-y-4"></div>
+            </div>
+
+            <!-- Create Shop Section -->
+            <div id="admin-section-create" class="admin-section">
+                <h2 class="text-3xl font-bold mb-6">إنشاء محل جديد</h2>
+                <form id="create-shop-form" onsubmit="createShop(event)" class="glass-card p-6 max-w-lg">
+                    <div class="mb-4">
+                        <label class="block text-sm mb-2">اسم المحل</label>
+                        <input type="text" id="shop-name" placeholder="مثال: صالون الفخامة" required>
+                    </div>
+                    <div class="mb-4">
+                        <label class="block text-sm mb-2">البريد الإلكتروني</label>
+                        <input type="email" id="shop-email" placeholder="shop@example.com" required>
+                    </div>
+                    <div class="mb-4">
+                        <label class="block text-sm mb-2">نوع المحل</label>
+                        <select id="shop-type" required>
+                            <option value="">اختر النوع</option>
+                            <option value="laundry">مغسلة</option>
+                            <option value="barber">حلاق</option>
+                            <option value="tailor">خياط</option>
+                            <option value="workshop">ورشة</option>
+                            <option value="repair">صيانة</option>
+                            <option value="services">خدمات</option>
+                        </select>
+                    </div>
+                    <div class="mb-4">
+                        <label class="block text-sm mb-2">الباقة</label>
+                        <select id="shop-plan" required>
+                            <option value="basic">Basic - 99 ر.س (300 طلب)</option>
+                            <option value="pro">Pro - 199 ر.س (1000 طلب)</option>
+                            <option value="business">Business - 299 ر.س (غير محدود)</option>
+                        </select>
+                    </div>
+                    <div class="mb-6">
+                        <label class="block text-sm mb-2">مدة الاشتراك (أيام)</label>
+                        <input type="number" id="shop-days" value="30" min="1" required>
+                    </div>
+                    <button type="submit" class="btn-primary w-full">إنشاء المحل</button>
+                </form>
+            </div>
+
+            <!-- Subscriptions Section -->
+            <div id="admin-section-subscriptions" class="admin-section">
+                <h2 class="text-3xl font-bold mb-6">الاشتراكات</h2>
+                <div id="subscriptions-list" class="space-y-4"></div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // Firebase Config
+        const firebaseConfig = {
+            apiKey: "AIzaSyD453-ZcJTTYn09u_JwVjR8_nTWP_bogas",
+            authDomain: "servlysa.firebaseapp.com",
+            databaseURL: "https://servlysa-default-rtdb.firebaseio.com",
+            projectId: "servlysa",
+            storageBucket: "servlysa.firebasestorage.app",
+            messagingSenderId: "816156984476",
+            appId: "1:816156984476:web:ba8ac8ee03cb4868215959",
+            measurementId: "G-JESY21YY4X"
+        };
+
+        try {
+            firebase.initializeApp(firebaseConfig);
+        } catch (e) {
+            console.log('Firebase already initialized');
+        }
+
+        // State
+        let currentUser = null;
+        let shops = {};
+
+        // Hide loading after 2 seconds
+        setTimeout(() => {
+            document.getElementById('loading-screen').classList.add('hidden');
+        }, 2000);
+
+        // Login Handler
+        function handleLogin(event) {
+            event.preventDefault();
+            const email = document.getElementById('email-input').value.toLowerCase().trim();
+            const password = document.getElementById('password-input').value;
+
+            if (email.includes('meshari') && password === '123456') {
+                currentUser = { email: email, isAdmin: true };
+                showAdminDashboard();
+            } else {
+                alert('بيانات دخول غير صحيحة');
+            }
+        }
+
+        // Show Admin Dashboard
+        function showAdminDashboard() {
+            document.getElementById('login-page').classList.add('hidden');
+            document.getElementById('admin-dashboard').classList.remove('hidden');
+            loadShops();
+            updateStats();
+        }
+
+        // Show Admin Section
+        function showAdminSection(section) {
+            document.querySelectorAll('.admin-section').forEach(s => s.classList.remove('active'));
+            document.querySelectorAll('.admin-nav-item').forEach(btn => btn.classList.remove('active'));
+            
+            document.getElementById(`admin-section-${section}`).classList.add('active');
+            event.target.closest('.admin-nav-item').classList.add('active');
+
+            if (section === 'shops') loadShops();
+            if (section === 'subscriptions') loadSubscriptions();
+        }
+
+        // Create Shop
+        function createShop(event) {
+            event.preventDefault();
+            const name = document.getElementById('shop-name').value;
+            const email = document.getElementById('shop-email').value;
+            const type = document.getElementById('shop-type').value;
+            const plan = document.getElementById('shop-plan').value;
+            const days = parseInt(document.getElementById('shop-days').value);
+
+            const shopId = email.replace(/[@.]/g, '_');
+            const password = Math.random().toString(36).substring(2, 10);
+            const endDate = new Date();
+            endDate.setDate(endDate.getDate() + days);
+
+            shops[shopId] = {
+                id: shopId,
+                name, email, type, plan,
+                password,
+                status: 'active',
+                subscriptionEndDate: endDate.toISOString(),
+                usage: 0,
+                createdAt: new Date().toISOString()
+            };
+
+            localStorage.setItem('admin_shops', JSON.stringify(shops));
+            alert(`تم إنشاء المحل بنجاح!\nالبريد: ${email}\nكلمة المرور: ${password}`);
+            document.getElementById('create-shop-form').reset();
+            loadShops();
+            updateStats();
+        }
+
+        // Load Shops
+        function loadShops() {
+            shops = JSON.parse(localStorage.getItem('admin_shops') || '{}');
+            const list = document.getElementById('shops-list');
+            list.innerHTML = '';
+
+            Object.values(shops).forEach(shop => {
+                const card = document.createElement('div');
+                card.className = 'glass-card p-6';
+                card.innerHTML = `
+                    <div class="flex justify-between items-start">
+                        <div class="flex-1">
+                            <h3 class="text-xl font-bold">${shop.name}</h3>
+                            <p class="text-slate-400 text-sm">${shop.email}</p>
+                            <p class="text-slate-500 text-sm mt-2">النوع: ${shop.type} | الباقة: ${shop.plan}</p>
+                            <div class="mt-4 bg-slate-800 rounded-full h-2">
+                                <div class="bg-indigo-500 h-2 rounded-full" style="width: ${(shop.usage / 100) * 100}%"></div>
+                            </div>
+                            <p class="text-xs text-slate-400 mt-1">الاستهلاك: ${shop.usage}/100</p>
+                        </div>
+                        <div class="flex gap-2">
+                            <button onclick="renewSubscription('${shop.id}')" class="btn-primary text-sm">تجديد</button>
+                            <button onclick="deleteShop('${shop.id}')" class="bg-rose-500/20 text-rose-400 px-3 py-2 rounded text-sm">حذف</button>
+                        </div>
+                    </div>
+                `;
+                list.appendChild(card);
+            });
+        }
+
+        // Load Subscriptions
+        function loadSubscriptions() {
+            shops = JSON.parse(localStorage.getItem('admin_shops') || '{}');
+            const list = document.getElementById('subscriptions-list');
+            list.innerHTML = '';
+
+            Object.values(shops).forEach(shop => {
+                const endDate = new Date(shop.subscriptionEndDate);
+                const daysLeft = Math.ceil((endDate - new Date()) / (1000 * 60 * 60 * 24));
+                const card = document.createElement('div');
+                card.className = 'glass-card p-6';
+                card.innerHTML = `
+                    <div class="flex justify-between items-center">
+                        <div>
+                            <h3 class="text-lg font-bold">${shop.name}</h3>
+                            <p class="text-slate-400 text-sm">ينتهي في: ${endDate.toLocaleDateString('ar-SA')}</p>
+                            <p class="text-slate-500 text-sm mt-1">الأيام المتبقية: <span class="${daysLeft < 7 ? 'text-rose-400' : 'text-emerald-400'}">${daysLeft}</span></p>
+                        </div>
+                        <button onclick="renewSubscription('${shop.id}')" class="btn-primary">تجديد الآن</button>
+                    </div>
+                `;
+                list.appendChild(card);
+            });
+        }
+
+        // Renew Subscription
+        function renewSubscription(shopId) {
+            if (!shops[shopId]) return;
+            const endDate = new Date();
+            endDate.setDate(endDate.getDate() + 30);
+            shops[shopId].subscriptionEndDate = endDate.toISOString();
+            shops[shopId].usage = 0;
+            localStorage.setItem('admin_shops', JSON.stringify(shops));
+            alert('تم التجديد بنجاح!');
+            loadShops();
+            loadSubscriptions();
+            updateStats();
+        }
+
+        // Delete Shop
+        function deleteShop(shopId) {
+            if (confirm('هل أنت متأكد من حذف هذا المحل؟')) {
+                delete shops[shopId];
+                localStorage.setItem('admin_shops', JSON.stringify(shops));
+                loadShops();
+                updateStats();
+            }
+        }
+
+        // Update Stats
+        function updateStats() {
+            shops = JSON.parse(localStorage.getItem('admin_shops') || '{}');
+            const shopsList = Object.values(shops);
+            document.getElementById('stat-total-shops').textContent = shopsList.length;
+            document.getElementById('stat-active-shops').textContent = shopsList.filter(s => s.status === 'active').length;
+            document.getElementById('stat-revenue').textContent = (shopsList.length * 99) + ' ر.س';
+            document.getElementById('stat-expired').textContent = shopsList.filter(s => new Date(s.subscriptionEndDate) < new Date()).length;
+        }
+
+        // Logout
+        function logout() {
+            currentUser = null;
+            document.getElementById('admin-dashboard').classList.add('hidden');
+            document.getElementById('login-page').classList.remove('hidden');
+            document.getElementById('email-input').value = '';
+            document.getElementById('password-input').value = '';
+        }
+    </script>
+</body>
+</html>
