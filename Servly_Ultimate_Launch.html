@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Servly | إدارة طلباتك بذكاء فائق</title>
+    
+    <!-- Fonts & Icons -->
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Tajawal:wght@400;500;700;800;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+    
+    <!-- QRCode Library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
+    <style>
+        :root {
+            --primary: #3b82f6;
+            --primary-dark: #2563eb;
+            --bg-dark: #0f172a;
+            --glass: rgba(255, 255, 255, 0.03);
+            --glass-border: rgba(255, 255, 255, 0.08);
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+        }
+
+        * {
+            font-family: 'Tajawal', 'Plus Jakarta Sans', sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            background: #0d1117;
+            color: var(--text-main);
+            min-height: 100vh;
+            overflow-x: hidden;
+            margin: 0;
+            padding: 0;
+        }
+
+        /* Background Animation - Matching the image's deep blue/black feel */
+        .mesh-bg {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+            background: radial-gradient(circle at 50% 50%, #1a2332 0%, #0d1117 100%);
+        }
+
+        .mesh-circle {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(120px);
+            opacity: 0.15;
+            animation: meshMove 20s infinite ease-in-out;
+        }
+        .c1 { width: 600px; height: 600px; background: #3b82f6; top: -10%; left: -10%; }
+        .c2 { width: 500px; height: 500px; background: #1d4ed8; bottom: -10%; right: -10%; animation-delay: -5s; }
+
+        @keyframes meshMove {
+            0% { transform: translate(0, 0); }
+            100% { transform: translate(50px, 30px); }
+        }
+
+        /* Glassmorphism Components */
+        .glass-card {
+            background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 28px;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3);
+        }
+
+        .feature-card {
+            background: rgba(255, 255, 255, 0.02);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 20px;
+            padding: 24px;
+            transition: all 0.3s ease;
+        }
+        .feature-card:hover {
+            background: rgba(255, 255, 255, 0.05);
+            transform: translateY(-5px);
+        }
+
+        .glass-input {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: white;
+            border-radius: 14px;
+            transition: all 0.3s ease;
+            width: 100%;
+            padding: 14px 18px;
+        }
+        .glass-input:focus {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: var(--primary);
+            outline: none;
+        }
+
+        .btn-primary {
+            background: #2563eb;
+            color: white;
+            padding: 14px 28px;
+            border-radius: 14px;
+            font-weight: 700;
+            transition: all 0.3s ease;
+            border: none;
+            cursor: pointer;
+        }
+        .btn-primary:hover {
+            background: #1d4ed8;
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(37, 99, 235, 0.3);
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: 280px;
+            height: 100vh;
+            position: fixed;
+            right: 0;
+            top: 0;
+            background: rgba(13, 17, 23, 0.95);
+            backdrop-filter: blur(20px);
+            border-left: 1px solid rgba(255, 255, 255, 0.05);
+            z-index: 100;
+        }
+
+        .nav-item {
+            display: flex;
+            align-items: center;
+            padding: 14px 20px;
+            margin: 4px 12px;
+            border-radius: 14px;
+            color: var(--text-muted);
+            transition: all 0.3s ease;
+            cursor: pointer;
+            text-align: right;
+            width: calc(100% - 24px);
+        }
+        .nav-item:hover, .nav-item.active {
+            background: rgba(37, 99, 235, 0.1);
+            color: #3b82f6;
+        }
+        .nav-item i { width: 24px; margin-left: 12px; font-size: 1.1rem; }
+
+        .hidden { display: none !important; }
+        .fade-in { animation: fadeIn 0.6s ease forwards; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* Table */
+        table { width: 100%; border-collapse: separate; border-spacing: 0 10px; }
+        th { text-align: right; padding: 12px 16px; color: var(--text-muted); font-size: 0.85rem; font-weight: 700; }
+        td { padding: 18px 16px; background: rgba(255, 255, 255, 0.02); border-top: 1px solid rgba(255, 255, 255, 0.03); border-bottom: 1px solid rgba(255, 255, 255, 0.03); }
+        tr td:first-child { border-radius: 0 16px 16px 0; border-right: 1px solid rgba(255, 255, 255, 0.03); }
+        tr td:last-child { border-radius: 16px 0 0 16px; border-left: 1px solid rgba(255, 255, 255, 0.03); }
+
+        .badge { padding: 6px 14px; border-radius: 100px; font-size: 0.75rem; font-weight: 800; }
+        .badge-pending { background: rgba(245, 158, 11, 0.1); color: #f59e0b; }
+        .badge-processing { background: rgba(59, 130, 246, 0.1); color: #3b82f6; }
+        .badge-ready { background: rgba(16, 185, 129, 0.1); color: #10b981; }
+        .badge-delivered { background: rgba(148, 163, 184, 0.1); color: #94a3b8; }
+
+        /* Progress Bar */
+        .progress-container { width: 100%; background: rgba(255, 255, 255, 0.05); border-radius: 100px; height: 8px; overflow: hidden; margin-top: 10px; }
+        .progress-bar { height: 100%; background: #3b82f6; transition: width 0.5s ease; }
+    </style>
+</head>
+<body>
+    <div class="mesh-bg">
+        <div class="mesh-circle c1"></div>
+        <div class="mesh-circle c2"></div>
+    </div>
+
+    <!-- Landing & Login Page (Matching Image) -->
+    <div id="login-page" class="min-h-screen flex items-center justify-center p-6 lg:p-20">
+        <div class="container max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-20 items-center">
+            
+            <!-- Right Side: Content (Matching Image) -->
+            <div class="order-2 lg:order-1 text-right fade-in">
+                <h1 class="text-6xl lg:text-7xl font-black mb-6 leading-tight">إدارة طلباتك<br><span class="text-blue-500">بذكاء فائق</span></h1>
+                <p class="text-xl text-slate-400 mb-12 max-w-xl ml-auto">انضم إلى مئات المتاجر التي تستخدم Servly لتوفير تجربة واحترافية لعملائها.</p>
+                
+                <div class="grid grid-cols-2 gap-6">
+                    <div class="feature-card">
+                        <div class="w-12 h-12 bg-blue-500/10 rounded-xl flex items-center justify-center mb-4 mr-auto">
+                            <i class="fas fa-bolt text-blue-500 text-xl"></i>
+                        </div>
+                        <h3 class="font-bold text-lg mb-2">مزامنة لحظية</h3>
+                        <p class="text-sm text-slate-500">تحديثات فورية للعملاء في أقل من ثانية.</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="w-12 h-12 bg-pink-500/10 rounded-xl flex items-center justify-center mb-4 mr-auto">
+                            <i class="fas fa-bell text-pink-500 text-xl"></i>
+                        </div>
+                        <h3 class="font-bold text-lg mb-2">إشعارات ذكية</h3>
+                        <p class="text-sm text-slate-500">تنبيهات مباشرة على هاتف العميل.</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="w-12 h-12 bg-emerald-500/10 rounded-xl flex items-center justify-center mb-4 mr-auto">
+                            <i class="fas fa-chart-pie text-emerald-500 text-xl"></i>
+                        </div>
+                        <h3 class="font-bold text-lg mb-2">إحصائيات دقيقة</h3>
+                        <p class="text-sm text-slate-500">تقارير مالية وأداء يومي مفصل.</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="w-12 h-12 bg-cyan-500/10 rounded-xl flex items-center justify-center mb-4 mr-auto">
+                            <i class="fab fa-whatsapp text-cyan-500 text-xl"></i>
+                        </div>
+                        <h3 class="font-bold text-lg mb-2">ربط واتساب</h3>
+                        <p class="text-sm text-slate-500">استقبال طلبات وحجوزات تلقائية.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Left Side: Login Card (Matching Image) -->
+            <div class="order-1 lg:order-2 fade-in" style="animation-delay: 0.2s">
+                <div class="glass-card p-12 w-full max-w-md mx-auto">
+                    <div class="mb-10">
+                        <h2 class="text-4xl font-black mb-3">تسجيل الدخول</h2>
+                        <p class="text-slate-400">مرحباً بك مجدداً في Servly</p>
+                    </div>
+                    
+                    <form onsubmit="handleLogin(event)" class="space-y-8">
+                        <div>
+                            <label class="block text-sm font-bold text-slate-300 mb-3">اسم المستخدم أو البريد</label>
+                            <input type="text" id="login-id" class="glass-input" placeholder="أدخل بيانات الدخول" required>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-bold text-slate-300 mb-3">كلمة المرور</label>
+                            <input type="password" id="login-pass" class="glass-input" placeholder="••••••••••••" required>
+                        </div>
+                        <button type="submit" class="btn-primary w-full text-lg py-5">دخول للمنصة</button>
+                    </form>
+                    
+                    <div class="mt-10 text-center">
+                        <p class="text-slate-500 text-sm">ليس لديك حساب؟ <a href="#" class="text-blue-500 font-bold">تواصل مع الإدارة</a></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Admin Dashboard -->
+    <div id="admin-dashboard" class="hidden min-h-screen flex">
+        <aside class="sidebar">
+            <div class="p-10 mb-6">
+                <h2 class="text-4xl font-black text-blue-500">Servly</h2>
+                <p class="text-xs text-slate-500 mt-2 font-bold uppercase tracking-widest">Admin Panel</p>
+            </div>
+            <nav class="flex-1">
+                <button onclick="showAdminSection('dashboard')" class="nav-item active" id="nav-dashboard"><i class="fas fa-th-large"></i>الرئيسية</button>
+                <button onclick="showAdminSection('shops')" class="nav-item" id="nav-shops"><i class="fas fa-store"></i>المحلات</button>
+                <button onclick="showAdminSection('create')" class="nav-item" id="nav-create"><i class="fas fa-plus-circle"></i>إضافة محل</button>
+                <button onclick="showAdminSection('subscriptions')" class="nav-item" id="nav-subscriptions"><i class="fas fa-credit-card"></i>الاشتراكات</button>
+            </nav>
+            <div class="p-8">
+                <button onclick="logout()" class="nav-item text-rose-400 hover:bg-rose-500/10"><i class="fas fa-sign-out-alt"></i>خروج</button>
+            </div>
+        </aside>
+
+        <main class="flex-1 mr-[280px] p-12 overflow-y-auto">
+            <div id="admin-section-dashboard" class="admin-section">
+                <h2 class="text-5xl font-black mb-12">نظرة عامة</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+                    <div class="glass-card p-10"><p class="text-slate-400 text-sm mb-3 font-bold">إجمالي المحلات</p><h3 class="text-5xl font-black" id="stat-total-shops">0</h3></div>
+                    <div class="glass-card p-10"><p class="text-slate-400 text-sm mb-3 font-bold">محلات نشطة</p><h3 class="text-5xl font-black text-emerald-400" id="stat-active-shops">0</h3></div>
+                    <div class="glass-card p-10"><p class="text-slate-400 text-sm mb-3 font-bold">إجمالي الإيرادات</p><h3 class="text-5xl font-black text-blue-500" id="stat-revenue">0 ر.س</h3></div>
+                    <div class="glass-card p-10"><p class="text-slate-400 text-sm mb-3 font-bold">اشتراكات منتهية</p><h3 class="text-5xl font-black text-rose-400" id="stat-expired">0</h3></div>
+                </div>
+            </div>
+
+            <div id="admin-section-shops" class="admin-section hidden">
+                <h2 class="text-5xl font-black mb-12">إدارة المحلات</h2>
+                <div id="shops-list" class="grid grid-cols-1 lg:grid-cols-2 gap-8"></div>
+            </div>
+
+            <div id="admin-section-create" class="admin-section hidden">
+                <h2 class="text-5xl font-black mb-12">إضافة محل جديد</h2>
+                <div class="glass-card p-12 max-w-3xl">
+                    <form onsubmit="createShop(event)" class="space-y-8">
+                        <div class="grid grid-cols-2 gap-8">
+                            <div><label class="block text-sm font-bold mb-3">اسم المحل</label><input type="text" id="shop-name" class="glass-input" placeholder="صالون الفخامة" required></div>
+                            <div><label class="block text-sm font-bold mb-3">البريد الإلكتروني</label><input type="email" id="shop-email" class="glass-input" placeholder="shop@example.com" required></div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-8">
+                            <div><label class="block text-sm font-bold mb-3">نوع النشاط</label><select id="shop-type" class="glass-input"><option value="laundry">مغسلة</option><option value="barber">حلاق</option><option value="tailor">خياط</option><option value="workshop">ورشة</option></select></div>
+                            <div><label class="block text-sm font-bold mb-3">الباقة</label><select id="shop-plan" class="glass-input"><option value="basic">Basic (300 طلب)</option><option value="pro">Pro (1000 طلب)</option><option value="business">Business (غير محدود)</option></select></div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-8">
+                            <div><label class="block text-sm font-bold mb-3">كلمة المرور</label><input type="text" id="shop-pass-create" class="glass-input" placeholder="حدد كلمة المرور" required></div>
+                            <div><label class="block text-sm font-bold mb-3">المدة (أيام)</label><input type="number" id="shop-days" class="glass-input" value="30" required></div>
+                        </div>
+                        <button type="submit" class="btn-primary w-full py-5 text-xl">تفعيل المحل الآن</button>
+                    </form>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Shop Dashboard -->
+    <div id="shop-dashboard" class="hidden min-h-screen flex">
+        <aside class="sidebar">
+            <div class="p-10 mb-6">
+                <h2 class="text-3xl font-black text-blue-500" id="shop-sidebar-name">المحل</h2>
+                <p class="text-xs text-slate-500 mt-2 font-bold uppercase tracking-widest">Shop Manager</p>
+            </div>
+            <nav class="flex-1">
+                <button onclick="showShopSection('dashboard')" class="nav-item active" id="shop-nav-dashboard"><i class="fas fa-chart-line"></i>الإحصائيات</button>
+                <button onclick="showShopSection('orders')" class="nav-item" id="shop-nav-orders"><i class="fas fa-list-ul"></i>الطلبات</button>
+                <button onclick="showShopSection('add-order')" class="nav-item" id="shop-nav-add"><i class="fas fa-plus-circle"></i>إضافة طلب</button>
+            </nav>
+            <div class="p-8">
+                <button onclick="logout()" class="nav-item text-rose-400 hover:bg-rose-500/10"><i class="fas fa-sign-out-alt"></i>خروج</button>
+            </div>
+        </aside>
+
+        <main class="flex-1 mr-[280px] p-12 overflow-y-auto">
+            <!-- Shop Stats -->
+            <div id="shop-section-dashboard" class="shop-section">
+                <h2 class="text-5xl font-black mb-12">إحصائيات الأداء</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mb-12">
+                    <div class="glass-card p-10"><p class="text-slate-400 text-sm mb-3 font-bold">إجمالي الدخل</p><h3 class="text-4xl font-black text-blue-500" id="shop-stat-income">0 ر.س</h3></div>
+                    <div class="glass-card p-10"><p class="text-slate-400 text-sm mb-3 font-bold">الطلبات المنتهية</p><h3 class="text-4xl font-black text-emerald-400" id="shop-stat-done">0</h3></div>
+                    <div class="glass-card p-10"><p class="text-slate-400 text-sm mb-3 font-bold">قيد العمل</p><h3 class="text-4xl font-black text-amber-400" id="shop-stat-working">0</h3></div>
+                    <div class="glass-card p-10"><p class="text-slate-400 text-sm mb-3 font-bold">استهلاك الباقة</p><h3 class="text-2xl font-black" id="shop-stat-usage">0 / 0</h3><div class="progress-container"><div id="shop-stat-bar" class="progress-bar"></div></div></div>
+                </div>
+            </div>
+
+            <!-- Shop Orders List -->
+            <div id="shop-section-orders" class="shop-section hidden">
+                <div class="flex justify-between items-center mb-12">
+                    <h2 class="text-5xl font-black">سجل الطلبات</h2>
+                    <div class="flex gap-4">
+                        <button onclick="filterOrders('all')" class="badge bg-blue-500/10 text-blue-500">الكل</button>
+                        <button onclick="filterOrders('pending')" class="badge bg-amber-500/10 text-amber-500">قيد العمل</button>
+                        <button onclick="filterOrders('ready')" class="badge bg-emerald-500/10 text-emerald-500">جاهز</button>
+                    </div>
+                </div>
+                <div class="glass-card p-8 overflow-x-auto">
+                    <table>
+                        <thead><tr><th>رقم الطلب</th><th>العميل</th><th>الخدمة</th><th>السعر</th><th>الحالة</th><th>إجراء</th></tr></thead>
+                        <tbody id="orders-table-body"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Add Order Form -->
+            <div id="shop-section-add-order" class="shop-section hidden">
+                <h2 class="text-5xl font-black mb-12">إضافة طلب جديد</h2>
+                <div class="glass-card p-12 max-w-3xl">
+                    <form onsubmit="addOrder(event)" class="space-y-8">
+                        <div class="grid grid-cols-2 gap-8">
+                            <div><label class="block text-sm font-bold mb-3">اسم العميل</label><input type="text" id="order-customer" class="glass-input" placeholder="محمد علي" required></div>
+                            <div><label class="block text-sm font-bold mb-3">رقم الجوال</label><input type="tel" id="order-phone" class="glass-input" placeholder="05xxxxxxxx" required></div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-8">
+                            <div><label class="block text-sm font-bold mb-3">نوع الخدمة</label><input type="text" id="order-service" class="glass-input" placeholder="غسيل مستعجل" required></div>
+                            <div><label class="block text-sm font-bold mb-3">السعر (ر.س)</label><input type="number" id="order-price" class="glass-input" placeholder="50" required></div>
+                        </div>
+                        <button type="submit" class="btn-primary w-full py-5 text-xl">تأكيد وإضافة الطلب</button>
+                    </form>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        let shops = JSON.parse(localStorage.getItem('servly_shops') || '{}');
+        let orders = JSON.parse(localStorage.getItem('servly_orders') || '{}');
+        let currentShop = null;
+        let currentFilter = 'all';
+
+        function handleLogin(event) {
+            event.preventDefault();
+            const id = document.getElementById('login-id').value.trim();
+            const pass = document.getElementById('login-pass').value;
+
+            if (id === 'MESHARI' && pass === '123456') {
+                document.getElementById('login-page').classList.add('hidden');
+                document.getElementById('admin-dashboard').classList.remove('hidden');
+                updateAdminStats();
+                showAdminSection('dashboard');
+                return;
+            }
+
+            const shop = Object.values(shops).find(s => (s.email === id || s.name === id) && s.password === pass);
+            if (shop) {
+                currentShop = shop;
+                document.getElementById('login-page').classList.add('hidden');
+                document.getElementById('shop-dashboard').classList.remove('hidden');
+                document.getElementById('shop-sidebar-name').textContent = shop.name;
+                loadShopStats();
+                showShopSection('dashboard');
+                return;
+            }
+            alert('بيانات الدخول غير صحيحة');
+        }
+
+        // Admin Logic
+        function showAdminSection(sec) {
+            document.querySelectorAll('.admin-section').forEach(s => s.classList.add('hidden'));
+            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+            document.getElementById(`admin-section-${sec}`).classList.remove('hidden');
+            document.getElementById(`nav-${sec}`).classList.add('active');
+            if (sec === 'shops') loadShops();
+            if (sec === 'dashboard') updateAdminStats();
+        }
+
+        function createShop(e) {
+            e.preventDefault();
+            const shopId = 'shop_' + Date.now();
+            const expiry = new Date();
+            expiry.setDate(expiry.getDate() + parseInt(document.getElementById('shop-days').value));
+            
+            shops[shopId] = {
+                id: shopId,
+                name: document.getElementById('shop-name').value,
+                email: document.getElementById('shop-email').value,
+                type: document.getElementById('shop-type').value,
+                plan: document.getElementById('shop-plan').value,
+                password: document.getElementById('shop-pass-create').value,
+                expiryDate: expiry.toISOString(),
+                usage: 0
+            };
+            localStorage.setItem('servly_shops', JSON.stringify(shops));
+            alert('تم إنشاء المحل بنجاح!');
+            showAdminSection('shops');
+        }
+
+        function loadShops() {
+            const list = document.getElementById('shops-list');
+            list.innerHTML = '';
+            Object.values(shops).forEach(shop => {
+                const card = document.createElement('div');
+                card.className = 'glass-card p-10 fade-in';
+                card.innerHTML = `
+                    <div class="flex justify-between items-start mb-8">
+                        <div><h3 class="text-3xl font-black mb-2">${shop.name}</h3><p class="text-slate-500 font-bold">${shop.email}</p></div>
+                        <span class="badge bg-emerald-500/10 text-emerald-500">نشط</span>
+                    </div>
+                    <div class="grid grid-cols-2 gap-6 mb-8">
+                        <div class="bg-white/5 p-5 rounded-2xl"><p class="text-xs text-slate-500 mb-1 font-bold">كلمة المرور</p><p class="font-black">${shop.password}</p></div>
+                        <div class="bg-white/5 p-5 rounded-2xl"><p class="text-xs text-slate-500 mb-1 font-bold">الباقة</p><p class="font-black">${shop.plan}</p></div>
+                    </div>
+                    <button onclick="deleteShop('${shop.id}')" class="w-full bg-rose-500/10 text-rose-500 py-4 rounded-xl font-bold">حذف المحل</button>
+                `;
+                list.appendChild(card);
+            });
+        }
+
+        // Shop Logic
+        function showShopSection(sec) {
+            document.querySelectorAll('.shop-section').forEach(s => s.classList.add('hidden'));
+            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+            document.getElementById(`shop-section-${sec}`).classList.remove('hidden');
+            document.getElementById(`shop-nav-${sec === 'add-order' ? 'add' : sec}`).classList.add('active');
+            if (sec === 'orders') loadOrders();
+            if (sec === 'dashboard') loadShopStats();
+        }
+
+        function addOrder(e) {
+            e.preventDefault();
+            const orderId = 'ORD-' + Math.floor(1000 + Math.random() * 9000);
+            const newOrder = {
+                id: orderId,
+                customer: document.getElementById('order-customer').value,
+                phone: document.getElementById('order-phone').value,
+                service: document.getElementById('order-service').value,
+                price: parseFloat(document.getElementById('order-price').value),
+                status: 'pending',
+                date: new Date().toISOString()
+            };
+            if (!orders[currentShop.id]) orders[currentShop.id] = [];
+            orders[currentShop.id].unshift(newOrder);
+            currentShop.usage++;
+            shops[currentShop.id].usage = currentShop.usage;
+            localStorage.setItem('servly_orders', JSON.stringify(orders));
+            localStorage.setItem('servly_shops', JSON.stringify(shops));
+            alert('تم إضافة الطلب!');
+            showShopSection('orders');
+        }
+
+        function loadOrders() {
+            const tbody = document.getElementById('orders-table-body');
+            tbody.innerHTML = '';
+            let shopOrders = orders[currentShop.id] || [];
+            if (currentFilter !== 'all') shopOrders = shopOrders.filter(o => o.status === currentFilter);
+
+            shopOrders.forEach(order => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td class="font-black">${order.id}</td>
+                    <td>${order.customer}<br><span class="text-xs text-slate-500">${order.phone}</span></td>
+                    <td>${order.service}</td>
+                    <td class="font-bold text-blue-500">${order.price} ر.س</td>
+                    <td><span class="badge badge-${order.status}">${getStatusText(order.status)}</span></td>
+                    <td>
+                        <div class="flex gap-2">
+                            <select onchange="updateStatus('${order.id}', this.value)" class="bg-white/5 border-none text-xs rounded p-2">
+                                <option value="pending" ${order.status === 'pending' ? 'selected' : ''}>قيد العمل</option>
+                                <option value="ready" ${order.status === 'ready' ? 'selected' : ''}>جاهز</option>
+                                <option value="delivered" ${order.status === 'delivered' ? 'selected' : ''}>تم التسليم</option>
+                            </select>
+                            <button onclick="sendWhatsApp('${order.phone}', '${order.id}', '${order.status}')" class="bg-emerald-500/10 text-emerald-500 p-2 rounded-lg"><i class="fab fa-whatsapp"></i></button>
+                        </div>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function loadShopStats() {
+            const shopOrders = orders[currentShop.id] || [];
+            const income = shopOrders.reduce((sum, o) => sum + o.price, 0);
+            const done = shopOrders.filter(o => o.status === 'delivered').length;
+            const working = shopOrders.filter(o => o.status === 'pending' || o.status === 'processing').length;
+            const limit = currentShop.plan === 'basic' ? 300 : (currentShop.plan === 'pro' ? 1000 : '∞');
+            const percent = limit === '∞' ? 0 : (currentShop.usage / limit) * 100;
+
+            document.getElementById('shop-stat-income').textContent = income + ' ر.س';
+            document.getElementById('shop-stat-done').textContent = done;
+            document.getElementById('shop-stat-working').textContent = working;
+            document.getElementById('shop-stat-usage').textContent = `${currentShop.usage} / ${limit}`;
+            document.getElementById('shop-stat-bar').style.width = percent + '%';
+        }
+
+        function filterOrders(f) { currentFilter = f; loadOrders(); }
+        function updateStatus(id, s) { const o = orders[currentShop.id].find(x => x.id === id); if (o) { o.status = s; localStorage.setItem('servly_orders', JSON.stringify(orders)); loadOrders(); loadShopStats(); } }
+        function sendWhatsApp(p, id, s) { const msg = `مرحباً، طلبك رقم ${id} حالته الآن: ${getStatusText(s)}. شكراً لتعاملك معنا!`; window.open(`https://wa.me/${p}?text=${encodeURIComponent(msg)}`); }
+        function getStatusText(s) { const m = { pending: 'قيد العمل', ready: 'جاهز', delivered: 'تم التسليم' }; return m[s] || s; }
+        function updateAdminStats() { const arr = Object.values(shops); document.getElementById('stat-total-shops').textContent = arr.length; document.getElementById('stat-active-shops').textContent = arr.length; document.getElementById('stat-revenue').textContent = (arr.length * 99) + ' ر.س'; }
+        function logout() { location.reload(); }
+        function deleteShop(id) { if (confirm('حذف؟')) { delete shops[id]; localStorage.setItem('servly_shops', JSON.stringify(shops)); loadShops(); updateAdminStats(); } }
+    </script>
+</body>
+</html>
